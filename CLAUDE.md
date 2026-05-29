@@ -85,3 +85,34 @@ Table will have `operator[](ListTable)` which return a Wrapper. The mutable wrap
 
 ## Drag And Drop
 1. Drop / canDrop will operate directly on the Value instead of a QModelIndex. For Drop on the root, `canDropOnRoot` or `dropOnRoot` will be called.
+
+## How to build
+
+The build uses CMake presets. Qt is consumed from a system install (never hardcoded
+in the build files), and GTest comes from vcpkg. No absolute path lives in any CMake file.
+
+### Required environment
+
+- `VCPKG_ROOT` — path to a vcpkg checkout (used by the toolchain in `CMakePresets.json`).
+- Qt: discovered automatically. If it is not on the default search path, set **one** of
+  `QT_ROOT_DIR`, `Qt6_DIR`, `QTDIR`, or `CMAKE_PREFIX_PATH` to the Qt install prefix
+  (e.g. `~/Qt/6.8.3/macos`). The top-level `CMakeLists.txt` prepends these to
+  `CMAKE_PREFIX_PATH` before `find_package(Qt6)`.
+
+### Commands
+
+```bash
+export VCPKG_ROOT=/path/to/vcpkg
+export QT_ROOT_DIR=~/Qt/6.8.3/macos   # only if Qt is not auto-detected
+
+cmake --preset default
+cmake --build --preset default
+ctest --preset default --output-on-failure
+```
+
+### Targets
+
+- `CuteModel` (alias `CuteModel::CuteModel`) — the static library, installable/exportable
+  for downstream consumption (e.g. via vcpkg).
+- `cutemodel_tests` — GTest suite (`CUTEMODEL_BUILD_TESTS`, default ON).
+- `refobject` — example executable (`CUTEMODEL_BUILD_EXAMPLES`, default ON).
