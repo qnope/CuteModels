@@ -9,13 +9,14 @@
 #include <QStringList>
 #include <QVariant>
 
-using CuteModel::getAsRefObject;
-using CuteModel::Ref;
-using CuteModel::ValueRole;
+using cute::getAsRefObject;
+using cute::Ref;
+using cute::ValueRole;
 
 namespace {
 
 // Minimal Core-only list model exposing its values through ValueRole.
+// Placeholder until BasicListModel<T> exists.
 class ValueListModel : public QAbstractListModel
 {
 public:
@@ -34,7 +35,7 @@ public:
     {
         if (!index.isValid() || index.row() >= m_values.size())
             return {};
-        if (role == ValueRole || role == Qt::DisplayRole)
+        if (role == ValueRole)
             return m_values.at(index.row());
         return {};
     }
@@ -43,7 +44,7 @@ public:
     {
         if (!index.isValid() || index.row() >= m_values.size())
             return false;
-        if (role == ValueRole || role == Qt::EditRole) {
+        if (role == ValueRole) {
             m_values[index.row()] = value.toString();
             emit dataChanged(index, index, {role});
             return true;
@@ -67,7 +68,7 @@ int main(int argc, char **argv)
 
     Ref<QString> *ref = getAsRefObject<Ref<QString>>(model.index(1, 0));
 
-    QObject::connect(ref, &CuteModel::RefBase::valueChanged, [ref] {
+    QObject::connect(ref, &cute::RefBase::valueChanged, [ref] {
         qInfo() << "value changed to:" << ref->getValue();
     });
 

@@ -2,8 +2,8 @@
 
 #include <QtCore/qnamespace.h>
 
-namespace CuteModel {
+namespace cute {
 
 constexpr int ValueRole = Qt::UserRole + 1;
 
-} // namespace CuteModel
+} // namespace cute

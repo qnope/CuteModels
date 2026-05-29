@@ -2,7 +2,7 @@
 
 #include <QAbstractItemModel>
 
-namespace CuteModel {
+namespace cute {
 
 RefBase::RefBase(QPersistentModelIndex index, QObject *parent)
     : QObject(parent ? parent : const_cast<QAbstractItemModel *>(index.model()))
@@ -50,4 +50,4 @@ bool isInParentChain(const QModelIndex &index, const QModelIndex &ancestor)
     return false;
 }
 
-} // namespace CuteModel
+} // namespace cute

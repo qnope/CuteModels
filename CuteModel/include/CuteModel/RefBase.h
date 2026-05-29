@@ -3,7 +3,7 @@
 #include <QObject>
 #include <QPersistentModelIndex>
 
-namespace CuteModel {
+namespace cute {
 
 // Base, non-templated part of Ref<T>. It follows a single model item through a
 // QPersistentModelIndex and re-emits change notifications about that item (or its
@@ -34,4 +34,4 @@ bool isInside(const QModelIndex &index,
 // True when `index` is a descendant of `ancestor` (walking up the parent chain).
 bool isInParentChain(const QModelIndex &index, const QModelIndex &ancestor);
 
-} // namespace CuteModel
+} // namespace cute
