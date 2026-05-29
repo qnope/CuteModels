@@ -67,6 +67,7 @@ class Ref : public RefBase
 1. BasicListModel<T> : inherit from QAbstractListModel
 2. BasicTableModel<T> : inherit from QAbstractTableModel
 3. BasicTreeModel<T> : inherit from QAbstractItemModel
+4. AggregatedListModel<Model (maybe not templated)> : inherit from QAbstractItemModel and add Model inside instead of elements
 
 ## List information
 List will have `operator[](ListIndex)` which return a Wrapper. The mutable wrapper will, once deleted, emit the dataChanged.
@@ -116,3 +117,6 @@ ctest --preset default --output-on-failure
   for downstream consumption (e.g. via vcpkg).
 - `cutemodel_tests` — GTest suite (`CUTEMODEL_BUILD_TESTS`, default ON).
 - `refobject` — example executable (`CUTEMODEL_BUILD_EXAMPLES`, default ON).
+
+## Testing
+Always use `QAbstractItemModelTester`
