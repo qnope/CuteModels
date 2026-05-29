@@ -36,11 +36,14 @@ class RefBase : public QObject
         {
             if (isInside(m_index, topLeft, bottomRight))
                 emit valueChanged();
+            // If topLeft.parent() (or parent.parent.parent...)
+            // is m_index, emit this signal
             else if (isInParentChain(m_index, topLeft))
                 emit underlyingHierarchyChanged();
         })
     }
 
+    // these signals are public
     signals:
     void valueChanged();
     void underlyingHierarchyChanged();
@@ -61,10 +64,9 @@ class Ref : public RefBase
 ```
 
 ## Different Models targetted
-1. BasicListModel<T>
-2. BasicTableModel<T>
-3. BasicTreeModel<T>
-4. FunctionalModel<F>
+1. BasicListModel<T> : inherit from QAbstractListModel
+2. BasicTableModel<T> : inherit from QAbstractTableModel
+3. BasicTreeModel<T> : inherit from QAbstractItemModel
 
 ## List information
 List will have `operator[](ListIndex)` which return a Wrapper. The mutable wrapper will, once deleted, emit the dataChanged.
