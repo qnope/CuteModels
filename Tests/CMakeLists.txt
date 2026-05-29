@@ -1,3 +1,4 @@
+find_package(Qt6 REQUIRED COMPONENTS Test)
 find_package(GTest CONFIG REQUIRED)
 
 include(GoogleTest)
@@ -8,11 +9,13 @@ set_target_properties(cutemodel_tests PROPERTIES AUTOMOC ON)
 
 target_sources(cutemodel_tests PRIVATE
     test_variant_wrapper.cpp
-    test_ref.cpp)
+    test_ref.cpp
+    test_basic_list_model.cpp)
 
 target_link_libraries(cutemodel_tests PRIVATE
     CuteModel::CuteModel
     Qt6::Core
+    Qt6::Test
     GTest::gtest
     GTest::gtest_main)
 
