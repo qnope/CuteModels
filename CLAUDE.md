@@ -1,0 +1,85 @@
+# CuteModel
+
+CuteModel is a C++ library for Qt providing templated model types.
+
+## Technology
+1. Qt
+2. C++17 (maybe 20 is needed)
+3. CMake. Everything defined through targets, never or almost using `set` on global variable
+4. Exposed through vcpkg.
+5. GTests
+
+## Principle
+
+1. Build the model around lazy loading using `canFetchMore` and `fetchMore`.
+2. Construct `QPointer<Ref<T>>` with `Ref<T>` inheriting from `QObject` and follow an object using a `QPersistentModelIndex`. The free function is something close to: `getAsRefObject<Default = Ref<T>>(QModelIndex)`
+3. Most function follow the standard containers API. `push_back`...
+4. Propose a `VariantWrapper<T>` for object not eligible to `Q_DECLARE_METATYPE`. Using `reinterpret_cast`, `std::array<std::byte, N>` and `std::launder`.
+5. Don't care much about roles, except for QML.
+6. Use `multiData` instead of `data`.
+7. Edition will be done through a cache with `submit` / `revert`.
+
+## Ref information
+```cpp
+
+constexpr int ValueRole = Qt::UserRole + 1;
+
+class RefBase : public QObject 
+{
+    Q_OBJECT
+    public:
+    RefBase(QPersistentModelIndex index)
+        : QObject{index.model()}
+        , m_index(index)
+    {
+        connect(index.model(), &QAbstractItemModel::dataChanged, this, [this](auto topLeft, auto bottomRight)
+        {
+            if (isInside(m_index, topLeft, bottomRight))
+                emit valueChanged();
+            else if (isInParentChain(m_index, topLeft))
+                emit underlyingHierarchyChanged();
+        })
+    }
+
+    signals:
+    void valueChanged();
+    void underlyingHierarchyChanged();
+
+protected:
+    QPersistentModelIndex m_index;
+};
+
+template<typename T>
+class Ref : public RefBase
+{
+    T getValue() const { 
+        if (m_index.isValid() == false)
+            std::terminate();
+        return m_index.data(ValueRole).value<T>();
+    }
+};
+```
+
+## Different Models targetted
+1. BasicListModel<T>
+2. BasicTableModel<T>
+3. BasicTreeModel<T>
+4. FunctionalModel<F>
+
+## List information
+List will have `operator[](ListIndex)` which return a Wrapper. The mutable wrapper will, once deleted, emit the dataChanged.
+
+List are fully iterable. If mutable iteration, emit dataChanged() on the full model.
+List are also partially iterable. If mutable iteration, emit dataChanged on the partial part of the model.
+
+## Table information
+Table will have `operator[](ListTable)` which return a Wrapper. The mutable wrapper will, once deleted, emit the dataChanged
+
+## Proxy Models
+
+1. RowFilterModel
+2. RowSortModel
+3. FlattenTreeModel
+
+## Drag And Drop
+1. Drop / canDrop will operate directly on the Value instead of a QModelIndex. For Drop on the root, `canDropOnRoot` or `dropOnRoot` will be called.
