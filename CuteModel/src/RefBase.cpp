@@ -13,7 +13,7 @@ RefBase::RefBase(QPersistentModelIndex index, QObject *parent)
                 [this](const QModelIndex &topLeft, const QModelIndex &bottomRight) {
                     if (isInside(m_index, topLeft, bottomRight))
                         emit valueChanged();
-                    else if (isInParentChain(m_index, topLeft))
+                    else if (isInParentChain(topLeft, m_index))
                         emit underlyingHierarchyChanged();
                 });
     }
