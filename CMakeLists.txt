@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.21)
+cmake_minimum_required(VERSION 3.23)
 
 project(CuteModel
     VERSION 0.1.0
@@ -20,13 +20,13 @@ endforeach()
 
 find_package(Qt6 REQUIRED COMPONENTS Core)
 
-add_subdirectory(src)
+add_subdirectory(CuteModel)
 
 if(CUTEMODEL_BUILD_EXAMPLES)
-    add_subdirectory(examples)
+    add_subdirectory(Examples)
 endif()
 
 if(CUTEMODEL_BUILD_TESTS)
     enable_testing()
-    add_subdirectory(tests)
+    add_subdirectory(Tests)
 endif()
