@@ -6,7 +6,7 @@
 #include <type_traits>
 #include <utility>
 
-namespace CuteModel {
+namespace cute {
 
 // Stores a value of an arbitrary type T inside a trivially-copyable byte buffer so
 // it can travel through a QVariant even when T is not registered with
@@ -65,4 +65,4 @@ private:
     alignas(T) std::array<std::byte, sizeof(T)> m_storage;
 };
 
-} // namespace CuteModel
+} // namespace cute

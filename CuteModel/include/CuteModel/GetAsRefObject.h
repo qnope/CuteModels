@@ -5,7 +5,7 @@
 #include <QModelIndex>
 #include <QPersistentModelIndex>
 
-namespace CuteModel {
+namespace cute {
 
 // Builds a RefBase-derived object that follows `index`. The returned object is
 // parented to the index's model, so it lives as long as the model unless the
@@ -23,4 +23,4 @@ Default *getAsRefObject(const QModelIndex &index)
     return new Default(QPersistentModelIndex(index));
 }
 
-} // namespace CuteModel
+} // namespace cute

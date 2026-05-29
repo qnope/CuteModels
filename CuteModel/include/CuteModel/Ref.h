@@ -7,7 +7,7 @@
 
 #include <exception>
 
-namespace CuteModel {
+namespace cute {
 
 // Typed view over a single model item. Reads the item's ValueRole as a T.
 // No Q_OBJECT here: the signals are inherited from RefBase (moc cannot process
@@ -23,8 +23,12 @@ public:
         if (!m_index.isValid())
             std::terminate();
 
-        return m_index.data(ValueRole).template value<T>();
+        QVariant value = m_index.data(ValueRole);
+        if (!value.isValid())
+            std::terminate();
+
+        return value.template value<T>();
     }
 };
 
-} // namespace CuteModel
+} // namespace cute

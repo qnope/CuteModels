@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-using CuteModel::VariantWrapper;
+using cute::VariantWrapper;
 
 namespace {
 
