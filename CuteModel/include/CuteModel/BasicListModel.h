@@ -30,11 +30,16 @@ template <typename T>
 class BasicListModel : public BaseModel<T>
 {
 public:
-    using BaseModel<T>::BaseModel;
     using BaseModel<T>::at;
     using BaseModel<T>::getMutable;
 
     using const_iterator = typename std::vector<T>::const_iterator;
+
+    // Two ctors declared explicitly (rather than `using BaseModel<T>::BaseModel`)
+    // because MSVC flags inherited-ctor + new-ctor combinations as ambiguous
+    // during default-construction of subclasses, even when overload resolution
+    // is unambiguous on paper.
+    explicit BasicListModel(QObject *parent = nullptr) : BaseModel<T>(parent) {}
 
     explicit BasicListModel(QStringList headers, QObject *parent = nullptr)
         : BaseModel<T>(parent)
