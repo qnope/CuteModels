@@ -1,76 +1,72 @@
 #pragma once
 
+#include "CuteModel/BaseModel.h"
 #include "CuteModel/ItemProxy.h"
 #include "CuteModel/ValueRole.h"
 
-#include <QAbstractListModel>
-#include <QByteArray>
-#include <QHash>
+#include <QModelIndex>
 #include <QModelRoleData>
-#include <QPersistentModelIndex>
 #include <QVariant>
 
 #include <cstddef>
-#include <type_traits>
 #include <utility>
 #include <vector>
 
 namespace cute {
 
-// An in-memory, generic list model backed by a std::vector<T>.
-//
-// Like Ref<T> over RefBase, this is a header-only template that does NOT carry
-// its own Q_OBJECT (moc cannot process class templates). It declares no new
-// signals or slots: it emits the inherited dataChanged and uses the protected
-// begin/end row helpers QAbstractListModel already provides.
-//
-// The class is abstract: a concrete model implements data(const T&, int) to map
-// a stored value onto presentation roles. The ValueRole contract that Ref<T>
-// depends on is guaranteed by the base (see multiData), so subclasses only need
-// to describe the roles they care about (e.g. Qt::DisplayRole).
+// Flat, in-memory list model backed by a std::vector<T>. Inherits the storage
+// contract (getValue/setValue), edit cache, and drag/drop adapters from
+// BaseModel<T>; provides the list-shaped structural overrides, the
+// row-only role projection, and the std::vector-flavored container API.
 template <typename T>
-class BasicListModel : public QAbstractListModel
+class BasicListModel : public BaseModel<T>
 {
-    static_assert(std::is_copy_constructible_v<T> && std::is_destructible_v<T>,
-                  "BasicListModel<T> requires T to be copy-constructible and "
-                  "destructible so it can round-trip through QVariant via "
-                  "QVariant::fromValue<T>.");
-
 public:
-    using QAbstractListModel::QAbstractListModel;
+    using BaseModel<T>::BaseModel;
+    using BaseModel<T>::at;
+    using BaseModel<T>::getMutable;
 
     using const_iterator = typename std::vector<T>::const_iterator;
 
-    // Role projection: subclasses describe how a stored value maps to roles
-    // other than ValueRole. Return an invalid QVariant for unhandled roles.
+    // ---------- Role projection (row-only — list-specific) ----------
+    //
+    // Subclasses describe how a stored value maps to roles other than
+    // ValueRole; return an invalid QVariant for unhandled roles. Table/tree
+    // models will need a wider signature (column-aware), which is why these
+    // virtuals live here rather than on BaseModel.
+
     virtual QVariant data(const T &value, int role) const = 0;
 
-    virtual Qt::ItemFlags flags(const T &value) const { return Qt::ItemIsSelectable | Qt::ItemIsEnabled | Qt::ItemIsEditable; }
+    virtual Qt::ItemFlags flags(const T &value) const
+    {
+        return Qt::ItemIsSelectable | Qt::ItemIsEnabled | Qt::ItemIsEditable;
+    }
+
+    // ---------- Structural overrides ----------
 
     int rowCount(const QModelIndex &parent = QModelIndex()) const override
     {
         return parent.isValid() ? 0 : static_cast<int>(m_items.size());
     }
 
-    // Single source of truth for reads. ValueRole returns the value itself so
-    // Ref<T>::getValue() always round-trips; every other role is delegated to
-    // the subclass projection.
-    void multiData(const QModelIndex &index, QModelRoleDataSpan roleDataSpan) const override
+    int columnCount(const QModelIndex &parent = QModelIndex()) const override
     {
-        if (!checkIndex(index, CheckIndexOption::IndexIsValid | CheckIndexOption::ParentIsInvalid))
-            return;
-
-        const T &value = m_items[static_cast<std::size_t>(index.row())];
-        for (QModelRoleData &roleData : roleDataSpan) {
-            if (roleData.role() == ValueRole) {
-                roleData.setData(value);
-            } else if (QVariant projected = data(value, roleData.role()); projected.isValid()) {
-                roleData.data() = std::move(projected);
-            } else {
-                roleData.clearData();
-            }
-        }
+        return parent.isValid() ? 0 : 1;
     }
+
+    QModelIndex index(int row, int column,
+                      const QModelIndex &parent = QModelIndex()) const override
+    {
+        if (parent.isValid() || column != 0)
+            return {};
+        if (row < 0 || row >= static_cast<int>(m_items.size()))
+            return {};
+        return this->createIndex(row, column);
+    }
+
+    QModelIndex parent(const QModelIndex &) const override { return {}; }
+
+    // ---------- Read path ----------
 
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override
     {
@@ -79,63 +75,58 @@ public:
         return roleData.data();
     }
 
+    void multiData(const QModelIndex &index, QModelRoleDataSpan roleDataSpan) const override
+    {
+        if (!this->checkIndex(index, QAbstractItemModel::CheckIndexOption::IndexIsValid))
+            return;
+
+        const T &value = m_items[static_cast<std::size_t>(index.row())];
+        for (QModelRoleData &roleData : roleDataSpan) {
+            if (roleData.role() == ValueRole) {
+                roleData.setData(QVariant::fromValue(value));
+            } else if (QVariant projected = data(value, roleData.role()); projected.isValid()) {
+                roleData.data() = std::move(projected);
+            } else {
+                roleData.clearData();
+            }
+        }
+    }
+
     Qt::ItemFlags flags(const QModelIndex &index) const override
     {
         if (!index.isValid())
             return Qt::NoItemFlags;
-        return flags(m_items[static_cast<std::size_t>(index.row())]);
+        return flags(this->getStorageValue(index));
     }
 
-    bool setData(const QModelIndex &index, const QVariant &value,
-                 int role = Qt::EditRole) override
-    {
-        if (!checkIndex(index, CheckIndexOption::IndexIsValid | CheckIndexOption::ParentIsInvalid))
-            return false;
-        if (role != ValueRole && role != Qt::EditRole && role != Qt::DisplayRole)
-            return false;
-        if (!value.canConvert<T>())
-            return false;
-
-        m_items[static_cast<std::size_t>(index.row())] = value.value<T>();
-        emit dataChanged(index, index, {ValueRole, Qt::DisplayRole, Qt::EditRole});
-        return true;
-    }
-
-    QHash<int, QByteArray> roleNames() const override
-    {
-        QHash<int, QByteArray> names = QAbstractListModel::roleNames();
-        names.insert(ValueRole, QByteArrayLiteral("value"));
-        return names;
-    }
+    // ---------- Container API ----------
 
     int size() const noexcept { return static_cast<int>(m_items.size()); }
     bool empty() const noexcept { return m_items.empty(); }
 
-    const T &at(int row) const { return m_items.at(static_cast<std::size_t>(row)); }
-
     void push_back(T value)
     {
         const int row = size();
-        beginInsertRows(QModelIndex(), row, row);
+        this->beginInsertRows(QModelIndex(), row, row);
         m_items.push_back(std::move(value));
-        endInsertRows();
+        this->endInsertRows();
     }
 
     template <typename... Args>
     T &emplace_back(Args &&...args)
     {
         const int row = size();
-        beginInsertRows(QModelIndex(), row, row);
+        this->beginInsertRows(QModelIndex(), row, row);
         T &ref = m_items.emplace_back(std::forward<Args>(args)...);
-        endInsertRows();
+        this->endInsertRows();
         return ref;
     }
 
     void insert(int row, T value)
     {
-        beginInsertRows(QModelIndex(), row, row);
+        this->beginInsertRows(QModelIndex(), row, row);
         m_items.insert(m_items.begin() + row, std::move(value));
-        endInsertRows();
+        this->endInsertRows();
     }
 
     void append_range(const std::vector<T> &values)
@@ -144,9 +135,9 @@ public:
             return;
         const int first = size();
         const int last = first + static_cast<int>(values.size()) - 1;
-        beginInsertRows(QModelIndex(), first, last);
+        this->beginInsertRows(QModelIndex(), first, last);
         m_items.insert(m_items.end(), values.begin(), values.end());
-        endInsertRows();
+        this->endInsertRows();
     }
 
     void insert_range(int row, const std::vector<T> &values)
@@ -154,9 +145,9 @@ public:
         if (values.empty())
             return;
         const int last = row + static_cast<int>(values.size()) - 1;
-        beginInsertRows(QModelIndex(), row, last);
+        this->beginInsertRows(QModelIndex(), row, last);
         m_items.insert(m_items.begin() + row, values.begin(), values.end());
-        endInsertRows();
+        this->endInsertRows();
     }
 
     void erase(int row) { erase(row, row); }
@@ -165,21 +156,18 @@ public:
     {
         if (first < 0 || last < first || last >= size())
             return;
-        beginRemoveRows(QModelIndex(), first, last);
+        this->beginRemoveRows(QModelIndex(), first, last);
         m_items.erase(m_items.begin() + first, m_items.begin() + last + 1);
-        endRemoveRows();
+        this->endRemoveRows();
     }
 
-    void clear()
-    {
-        reset({});
-    }
+    void clear() { reset({}); }
 
     void reset(std::vector<T> newItems)
     {
-        beginResetModel();
+        this->beginResetModel();
         m_items = std::move(newItems);
-        endResetModel();
+        this->endResetModel();
     }
 
     void resize(int count, T defaultValue = T())
@@ -189,33 +177,55 @@ public:
             return;
 
         if (count > current) {
-            beginInsertRows(QModelIndex(), current, count - 1);
+            this->beginInsertRows(QModelIndex(), current, count - 1);
             m_items.resize(static_cast<std::size_t>(count), std::move(defaultValue));
-            endInsertRows();
+            this->endInsertRows();
         } else {
-            beginRemoveRows(QModelIndex(), count, current - 1);
+            this->beginRemoveRows(QModelIndex(), count, current - 1);
             m_items.resize(static_cast<std::size_t>(count));
-            endRemoveRows();
+            this->endRemoveRows();
         }
     }
 
-    // operator[] is read-only: it returns an ItemConstProxy that takes a
-    // snapshot of the row's value. Use getMutable(row) when you intend to
-    // write — a mutable proxy commits unconditionally on destruction.
-    ItemConstProxy<T> operator[](int row) const
+    // ---------- Ergonomic int-row accessors (cache-aware reads) ----------
+
+    ItemProxy<const T> at(int row) const
     {
-        return ItemConstProxy<T>(index(row, 0));
+        return BaseModel<T>::at(this->index(row, 0));
+    }
+
+    ItemProxy<const T> operator[](int row) const
+    {
+        return BaseModel<T>::at(this->index(row, 0));
     }
 
     ItemProxy<T> getMutable(int row)
     {
-        return ItemProxy<T>(QPersistentModelIndex(index(row, 0)));
+        return BaseModel<T>::getMutable(this->index(row, 0));
     }
+
+    // ---------- Raw-storage iteration (bypasses the cache) ----------
 
     const_iterator begin() const noexcept { return m_items.begin(); }
     const_iterator end() const noexcept { return m_items.end(); }
     const_iterator cbegin() const noexcept { return m_items.cbegin(); }
     const_iterator cend() const noexcept { return m_items.cend(); }
+
+protected:
+    const T &getStorageValue(const QModelIndex &index) const override
+    {
+        return m_items[static_cast<std::size_t>(index.row())];
+    }
+
+    T &getStorageValue(const QModelIndex &index) override
+    {
+        return m_items[static_cast<std::size_t>(index.row())];
+    }
+
+    void setStorageValue(const QModelIndex &index, T value) override
+    {
+        m_items[static_cast<std::size_t>(index.row())] = std::move(value);
+    }
 
 private:
     std::vector<T> m_items;

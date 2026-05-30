@@ -16,6 +16,7 @@ target_sources(CuteModel
             include/CuteModel/VariantWrapper.h
             include/CuteModel/GetAsRefObject.h
             include/CuteModel/ItemProxy.h
+            include/CuteModel/BaseModel.h
             include/CuteModel/BasicListModel.h)
 
 target_compile_features(CuteModel PUBLIC cxx_std_17)

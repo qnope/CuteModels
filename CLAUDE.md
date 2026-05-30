@@ -19,73 +19,18 @@ CuteModel is a C++ library for Qt providing templated model types.
 6. Use `multiData` instead of `data`.
 7. Edition will be done through a cache with `submit` / `revert`.
 
-## Ref information
-```cpp
-
-constexpr int ValueRole = Qt::UserRole + 1;
-
-class RefBase : public QObject 
-{
-    Q_OBJECT
-    public:
-    RefBase(QPersistentModelIndex index)
-        : QObject{index.model()}
-        , m_index(index)
-    {
-        connect(index.model(), &QAbstractItemModel::dataChanged, this, [this](auto topLeft, auto bottomRight)
-        {
-            if (isInside(m_index, topLeft, bottomRight))
-                emit valueChanged();
-            // If topLeft.parent() (or parent.parent.parent...)
-            // is m_index, emit this signal
-            else if (isInParentChain(m_index, topLeft))
-                emit underlyingHierarchyChanged();
-        })
-    }
-
-    // these signals are public
-    signals:
-    void valueChanged();
-    void underlyingHierarchyChanged();
-
-protected:
-    QPersistentModelIndex m_index;
-};
-
-template<typename T>
-class Ref : public RefBase
-{
-    T getValue() const { 
-        if (m_index.isValid() == false)
-            std::terminate();
-        return m_index.data(ValueRole).value<T>();
-    }
-};
-```
-
 ## Different Models targetted
-1. BasicListModel<T> : inherit from QAbstractListModel
-2. BasicTableModel<T> : inherit from QAbstractTableModel
-3. BasicTreeModel<T> : inherit from QAbstractItemModel
-4. AggregatedListModel<Model (maybe not templated)> : inherit from QAbstractItemModel and add Model inside instead of elements
-
-## List information
-List will have `operator[](ListIndex)` which return a Wrapper. The mutable wrapper will, once deleted, emit the dataChanged.
-
-List are fully iterable. If mutable iteration, emit dataChanged() on the full model.
-List are also partially iterable. If mutable iteration, emit dataChanged on the partial part of the model.
-
-## Table information
-Table will have `operator[](ListTable)` which return a Wrapper. The mutable wrapper will, once deleted, emit the dataChanged
+1. BaseModel<T> : Inherit from QAbstractItemModel. Handle drop(T) events, edit with caching, expose getValue function etc.
+1. BasicListModel<T> : inherit from BaseModel
+2. BasicTableModel<T> : inherit from BaseModel
+3. BasicTreeModel<T> : inherit from BaseModel
+4. AggregatedListModel<Model (maybe not templated)> : inherit from BaseModel and add Model inside instead of elements
 
 ## Proxy Models
 
 1. RowFilterModel
 2. RowSortModel
 3. FlattenTreeModel
-
-## Drag And Drop
-1. Drop / canDrop will operate directly on the Value instead of a QModelIndex. For Drop on the root, `canDropOnRoot` or `dropOnRoot` will be called.
 
 ## How to build
 
