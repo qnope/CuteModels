@@ -31,6 +31,13 @@ namespace cute {
 // lifetime, the QPersistentModelIndex becomes invalid and the destructor
 // silently skips the dataChanged emit. (The held T& itself is invalidated
 // by the same erase; callers must stop using the proxy after such an op.)
+//
+// The destructor emits dataChanged across the whole row of the proxy's
+// index (columns 0..columnCount-1). Models where "one row = one T" — like
+// BasicListModel<T> — need every column view to refresh when T mutates;
+// pinning the emission to the proxy's single (row, col) cell would miss
+// the sibling columns projecting the same T. Models with independent T
+// per cell (future BasicTableModel<T>) will need to revisit this scope.
 template <typename T>
 class ItemProxy
 {
@@ -53,7 +60,11 @@ public:
             if (!m_index.isValid())
                 return;
             auto *model = const_cast<QAbstractItemModel *>(m_index.model());
-            emit model->dataChanged(QModelIndex(m_index), QModelIndex(m_index));
+            const QModelIndex parent = m_index.parent();
+            const int lastCol = model->columnCount(parent) - 1;
+            const QModelIndex left = model->index(m_index.row(), 0, parent);
+            const QModelIndex right = model->index(m_index.row(), lastCol, parent);
+            emit model->dataChanged(left, right);
         }
     }
 
