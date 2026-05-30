@@ -1,11 +1,13 @@
 #pragma once
 
+#include "CuteModel/ItemProxy.h"
 #include "CuteModel/ValueRole.h"
 
 #include <QAbstractListModel>
 #include <QByteArray>
 #include <QHash>
 #include <QModelRoleData>
+#include <QPersistentModelIndex>
 #include <QVariant>
 
 #include <cstddef>
@@ -38,44 +40,6 @@ public:
     using QAbstractListModel::QAbstractListModel;
 
     using const_iterator = typename std::vector<T>::const_iterator;
-
-    // Mutable proxy returned by the non-const operator[]. Reads forward to the
-    // stored value; writes mark it dirty so that exactly one dataChanged is
-    // emitted for the row when the proxy is destroyed. Non-copyable/non-movable
-    // so a single write maps to a single notification.
-    class ItemRef
-    {
-    public:
-        ItemRef(BasicListModel *model, int row) : m_model(model), m_row(row) {}
-
-        ItemRef(const ItemRef &) = delete;
-        ItemRef &operator=(const ItemRef &) = delete;
-        ItemRef(ItemRef &&) = delete;
-
-        ~ItemRef()
-        {
-            if (m_dirty)
-                m_model->emitItemChanged(m_row);
-        }
-
-        operator const T &() const { return m_model->m_items[index()]; }
-        const T &get() const { return m_model->m_items[index()]; }
-        const T *operator->() const { return &m_model->m_items[index()]; }
-
-        ItemRef &operator=(T value)
-        {
-            m_model->m_items[index()] = std::move(value);
-            m_dirty = true;
-            return *this;
-        }
-
-    private:
-        std::size_t index() const { return static_cast<std::size_t>(m_row); }
-
-        BasicListModel *m_model;
-        int m_row;
-        bool m_dirty = false;
-    };
 
     // Role projection: subclasses describe how a stored value maps to roles
     // other than ValueRole. Return an invalid QVariant for unhandled roles.
@@ -235,8 +199,18 @@ public:
         }
     }
 
-    ItemRef operator[](int row) { return ItemRef(this, row); }
-    const T &operator[](int row) const { return m_items[static_cast<std::size_t>(row)]; }
+    // operator[] is read-only: it returns an ItemConstProxy that takes a
+    // snapshot of the row's value. Use getMutable(row) when you intend to
+    // write — a mutable proxy commits unconditionally on destruction.
+    ItemConstProxy<T> operator[](int row) const
+    {
+        return ItemConstProxy<T>(QPersistentModelIndex(index(row, 0)));
+    }
+
+    ItemProxy<T> getMutable(int row)
+    {
+        return ItemProxy<T>(QPersistentModelIndex(index(row, 0)));
+    }
 
     const_iterator begin() const noexcept { return m_items.begin(); }
     const_iterator end() const noexcept { return m_items.end(); }
@@ -244,12 +218,6 @@ public:
     const_iterator cend() const noexcept { return m_items.cend(); }
 
 private:
-    void emitItemChanged(int row)
-    {
-        const QModelIndex i = index(row, 0);
-        emit dataChanged(i, i, {ValueRole, Qt::DisplayRole, Qt::EditRole});
-    }
-
     std::vector<T> m_items;
 };
 
