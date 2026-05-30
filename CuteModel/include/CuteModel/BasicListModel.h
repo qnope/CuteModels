@@ -204,7 +204,7 @@ public:
     // write — a mutable proxy commits unconditionally on destruction.
     ItemConstProxy<T> operator[](int row) const
     {
-        return ItemConstProxy<T>(QPersistentModelIndex(index(row, 0)));
+        return ItemConstProxy<T>(index(row, 0));
     }
 
     ItemProxy<T> getMutable(int row)
