@@ -1,80 +1,47 @@
 #pragma once
 
-#include "CuteModel/ValueRole.h"
-
 #include <QAbstractItemModel>
 #include <QPersistentModelIndex>
-#include <QVariant>
 
 #include <exception>
 #include <memory>
+#include <type_traits>
 #include <utility>
 
 namespace cute {
 
-// Read-only view over a single model item. At construction the value is
-// retrieved through the abstract QAbstractItemModel::data(ValueRole) interface
-// and kept inside the proxy; the index is not stored, since the proxy is a
-// frozen snapshot — there is nothing to follow after the value is captured.
-// Dereference returns a stable reference (or pointer) into local storage.
+// Proxy over one cell of a model. Holds a reference to the underlying T (so
+// reads and writes pass straight through to storage — no QVariant round-trip)
+// and a QPersistentModelIndex (used only by the destructor to address the
+// dataChanged signal).
 //
-// Constructing with an invalid index (or with a model that does not expose
-// ValueRole) terminates — once a proxy exists, dereference cannot fail.
-template <typename T>
-class ItemConstProxy
-{
-public:
-    explicit ItemConstProxy(const QModelIndex &index)
-        : m_value([&] {
-            if (!index.isValid())
-                std::terminate();
-            QVariant variant = index.data(ValueRole);
-            if (!variant.isValid())
-                std::terminate();
-            return variant.template value<T>();
-        }())
-    {}
-
-    const T &operator*() const noexcept { return m_value; }
-    const T *operator->() const noexcept { return std::addressof(m_value); }
-
-private:
-    T m_value;
-};
-
-// Mutable view over a single model item. The value is retrieved into local
-// storage at construction just like ItemConstProxy; dereference returns a
-// (non-const) reference / pointer so callers can mutate in place — both
-// `*ref = x;` and `ref->method();` work, on top of the convenience
-// `ref = x;` overload.
+// Const-ness is selected by the template parameter:
+//   ItemProxy<const T>   — read-only view; destructor is a no-op.
+//   ItemProxy<T>         — mutable view; destructor emits dataChanged(idx, idx)
+//                          exactly once, so multiple in-lifetime mutations
+//                          batch into a single notification.
 //
-// On destruction the stored value is ALWAYS committed back through
-// setData(ValueRole) — there is no dirty tracking. Acquiring a mutable proxy
-// is the explicit signal of intent to write; if you only want to read, use
-// the const proxy from operator[]. The proxy never touches storage directly,
-// so an edition cache or other layered model is free to intercept the write.
+// Non-copyable / non-movable to keep the "one proxy -> at most one
+// dataChanged" RAII invariant. Returning by value from BaseModel::at /
+// getMutable works thanks to C++17 mandatory copy elision (the prvalue
+// initializes the named variable directly).
 //
-// Constructing with an invalid index (or with a model that does not expose
-// ValueRole) terminates. If the row is erased AFTER construction, the commit
-// is silently dropped on destruction (RAII-safe).
-//
-// Non-copyable / non-movable so a single proxy maps to at most one setData
-// call (and thus one dataChanged notification).
+// Invalid index at construction terminates — callers are expected to have
+// resolved the index first. If the row is removed during the proxy's
+// lifetime, the QPersistentModelIndex becomes invalid and the destructor
+// silently skips the dataChanged emit. (The held T& itself is invalidated
+// by the same erase; callers must stop using the proxy after such an op.)
 template <typename T>
 class ItemProxy
 {
 public:
-    explicit ItemProxy(QPersistentModelIndex index)
-        : m_index(std::move(index))
-        , m_value([this] {
-            if (!m_index.isValid())
-                std::terminate();
-            QVariant variant = m_index.data(ValueRole);
-            if (!variant.isValid())
-                std::terminate();
-            return variant.template value<T>();
-        }())
-    {}
+    explicit ItemProxy(T &value, QPersistentModelIndex index)
+        : m_value(value)
+        , m_index(std::move(index))
+    {
+        if (!m_index.isValid())
+            std::terminate();
+    }
 
     ItemProxy(const ItemProxy &) = delete;
     ItemProxy &operator=(const ItemProxy &) = delete;
@@ -82,22 +49,28 @@ public:
 
     ~ItemProxy()
     {
-        if (!m_index.isValid())
-            return;
-        // QPersistentModelIndex::model() returns const* by API convention;
-        // setData is non-const. The model owning this index was non-const
-        // when the proxy was created, so recovering write access is sound.
-        auto *model = const_cast<QAbstractItemModel *>(m_index.model());
-        model->setData(m_index, QVariant::fromValue(std::move(m_value)), ValueRole);
+        if constexpr (!std::is_const_v<T>) {
+            if (!m_index.isValid())
+                return;
+            auto *model = const_cast<QAbstractItemModel *>(m_index.model());
+            emit model->dataChanged(QModelIndex(m_index), QModelIndex(m_index));
+        }
     }
 
-    T &operator*() noexcept { return m_value; }
-    const T &operator*() const noexcept { return m_value; }
-    T *operator->() noexcept { return std::addressof(m_value); }
-    const T *operator->() const noexcept { return std::addressof(m_value); }
+    // Pointer-like accessors. The returned T is exactly the template T —
+    // const-correctness flows from the instantiation.
+    T &operator*() const noexcept { return m_value; }
+    T *operator->() const noexcept { return std::addressof(m_value); }
 
+    // Convenience assignment. Calling this on an ItemProxy<const T> fires
+    // the static_assert with a clear, dedicated diagnostic instead of the
+    // assignment-to-const-reference error that would come from m_value's
+    // type otherwise.
     ItemProxy &operator=(T value)
     {
+        static_assert(!std::is_const_v<T>,
+                      "ItemProxy<const T>::operator= is not allowed — "
+                      "the proxy is read-only");
         m_value = std::move(value);
         return *this;
     }
@@ -105,8 +78,8 @@ public:
     const QPersistentModelIndex &index() const noexcept { return m_index; }
 
 private:
+    T &m_value;
     QPersistentModelIndex m_index;
-    T m_value;
 };
 
 } // namespace cute

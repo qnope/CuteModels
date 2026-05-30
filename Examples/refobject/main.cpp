@@ -2,7 +2,6 @@
 #include "CuteModel/GetAsRefObject.h"
 #include "CuteModel/Ref.h"
 #include "CuteModel/RefBase.h"
-#include "CuteModel/ValueRole.h"
 
 #include <QCoreApplication>
 #include <QDebug>
@@ -12,7 +11,6 @@
 using cute::BasicListModel;
 using cute::getAsRefObject;
 using cute::Ref;
-using cute::ValueRole;
 
 namespace {
 
@@ -49,7 +47,7 @@ int main(int argc, char **argv)
 
     qInfo() << "initial value:" << ref->getValue();
 
-    model.setData(model.index(1, 0), QStringLiteral("BETA"), ValueRole);
+    model.setData(model.index(1, 0), QStringLiteral("BETA"), Qt::EditRole);
 
     qInfo() << "final value:" << ref->getValue();
 
