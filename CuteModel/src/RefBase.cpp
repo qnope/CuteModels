@@ -4,8 +4,8 @@
 
 namespace cute {
 
-RefBase::RefBase(QPersistentModelIndex index, QObject *parent)
-    : QObject(parent ? parent : const_cast<QAbstractItemModel *>(index.model()))
+RefBase::RefBase(QPersistentModelIndex index)
+    : QObject(const_cast<QAbstractItemModel *>(index.model()))
     , m_index(std::move(index))
 {
     if (const QAbstractItemModel *model = m_index.model()) {
