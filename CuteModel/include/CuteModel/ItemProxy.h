@@ -8,7 +8,6 @@
 
 #include <exception>
 #include <memory>
-#include <optional>
 #include <utility>
 
 namespace cute {
@@ -20,36 +19,32 @@ namespace cute {
 // model writes do not refresh it. The QPersistentModelIndex is preserved so
 // callers can still observe how the original row moved.
 //
-// Constructing with an invalid index is permitted (the proxy holds no value);
-// dereferencing such a proxy terminates, matching Ref<T>::getValue().
+// Constructing with an invalid index (or with a model that does not expose
+// ValueRole) terminates — once a proxy exists, dereference cannot fail.
 template <typename T>
 class ItemConstProxy
 {
 public:
     explicit ItemConstProxy(QPersistentModelIndex index)
         : m_index(std::move(index))
-    {
-        if (!m_index.isValid())
-            return;
-        QVariant variant = m_index.data(ValueRole);
-        if (!variant.isValid())
-            std::terminate();
-        m_value = variant.template value<T>();
-    }
+        , m_value([this] {
+            if (!m_index.isValid())
+                std::terminate();
+            QVariant variant = m_index.data(ValueRole);
+            if (!variant.isValid())
+                std::terminate();
+            return variant.template value<T>();
+        }())
+    {}
 
-    const T &operator*() const
-    {
-        if (!m_value)
-            std::terminate();
-        return *m_value;
-    }
-    const T *operator->() const { return std::addressof(**this); }
+    const T &operator*() const noexcept { return m_value; }
+    const T *operator->() const noexcept { return std::addressof(m_value); }
 
     const QPersistentModelIndex &index() const noexcept { return m_index; }
 
 private:
     QPersistentModelIndex m_index;
-    std::optional<T> m_value;
+    T m_value;
 };
 
 // Mutable view over a single model item. The value is retrieved into local
@@ -64,23 +59,27 @@ private:
 // the const proxy from operator[]. The proxy never touches storage directly,
 // so an edition cache or other layered model is free to intercept the write.
 //
+// Constructing with an invalid index (or with a model that does not expose
+// ValueRole) terminates. If the row is erased AFTER construction, the commit
+// is silently dropped on destruction (RAII-safe).
+//
 // Non-copyable / non-movable so a single proxy maps to at most one setData
-// call (and thus one dataChanged notification). If the row was erased before
-// destruction, the commit is silently dropped (RAII-safe).
+// call (and thus one dataChanged notification).
 template <typename T>
 class ItemProxy
 {
 public:
     explicit ItemProxy(QPersistentModelIndex index)
         : m_index(std::move(index))
-    {
-        if (!m_index.isValid())
-            return;
-        QVariant variant = m_index.data(ValueRole);
-        if (!variant.isValid())
-            std::terminate();
-        m_value = variant.template value<T>();
-    }
+        , m_value([this] {
+            if (!m_index.isValid())
+                std::terminate();
+            QVariant variant = m_index.data(ValueRole);
+            if (!variant.isValid())
+                std::terminate();
+            return variant.template value<T>();
+        }())
+    {}
 
     ItemProxy(const ItemProxy &) = delete;
     ItemProxy &operator=(const ItemProxy &) = delete;
@@ -88,29 +87,19 @@ public:
 
     ~ItemProxy()
     {
-        if (!m_value || !m_index.isValid())
+        if (!m_index.isValid())
             return;
         // QPersistentModelIndex::model() returns const* by API convention;
         // setData is non-const. The model owning this index was non-const
         // when the proxy was created, so recovering write access is sound.
         auto *model = const_cast<QAbstractItemModel *>(m_index.model());
-        model->setData(m_index, QVariant::fromValue(std::move(*m_value)), ValueRole);
+        model->setData(m_index, QVariant::fromValue(std::move(m_value)), ValueRole);
     }
 
-    T &operator*()
-    {
-        if (!m_value)
-            std::terminate();
-        return *m_value;
-    }
-    const T &operator*() const
-    {
-        if (!m_value)
-            std::terminate();
-        return *m_value;
-    }
-    T *operator->() { return std::addressof(**this); }
-    const T *operator->() const { return std::addressof(**this); }
+    T &operator*() noexcept { return m_value; }
+    const T &operator*() const noexcept { return m_value; }
+    T *operator->() noexcept { return std::addressof(m_value); }
+    const T *operator->() const noexcept { return std::addressof(m_value); }
 
     ItemProxy &operator=(T value)
     {
@@ -122,7 +111,7 @@ public:
 
 private:
     QPersistentModelIndex m_index;
-    std::optional<T> m_value;
+    T m_value;
 };
 
 } // namespace cute
