@@ -6,6 +6,8 @@
 
 #include <QModelIndex>
 #include <QModelRoleData>
+#include <QString>
+#include <QStringList>
 #include <QVariant>
 
 #include <cstddef>
@@ -14,10 +16,16 @@
 
 namespace cute {
 
-// Flat, in-memory list model backed by a std::vector<T>. Inherits the storage
-// contract (getValue/setValue), edit cache, and drag/drop adapters from
-// BaseModel<T>; provides the list-shaped structural overrides, the
-// row-only role projection, and the std::vector-flavored container API.
+// Flat, in-memory list model backed by a std::vector<T>: 1D storage but
+// N-column-displayable. A QStringList headers constructor argument fixes the
+// column count; each row is still one T, and subclasses project that T to
+// roles per column via data(const T&, int column, int role).
+//
+// Editing is restricted to column 0 (full-T write-through). Columns > 0 are
+// read-only by default — flags(T&, column) strips ItemIsEditable for col>0
+// and setData(index, ..., EditRole) returns false when index.column() != 0.
+// True 2D storage (independent T per cell) is reserved for the future
+// BasicTableModel<T>.
 template <typename T>
 class BasicListModel : public BaseModel<T>
 {
@@ -28,18 +36,25 @@ public:
 
     using const_iterator = typename std::vector<T>::const_iterator;
 
-    // ---------- Role projection (row-only — list-specific) ----------
+    explicit BasicListModel(QStringList headers, QObject *parent = nullptr)
+        : BaseModel<T>(parent)
+        , m_headers(headers.isEmpty() ? QStringList{QString()} : std::move(headers))
+    {}
+
+    // ---------- Role projection (per-column — list-specific) ----------
     //
     // Subclasses describe how a stored value maps to roles other than
-    // ValueRole; return an invalid QVariant for unhandled roles. Table/tree
-    // models will need a wider signature (column-aware), which is why these
-    // virtuals live here rather than on BaseModel.
+    // ValueRole, for each column; return an invalid QVariant for unhandled
+    // (column, role) pairs.
 
-    virtual QVariant data(const T &value, int role) const = 0;
+    virtual QVariant data(const T &value, int column, int role) const = 0;
 
-    virtual Qt::ItemFlags flags(const T &value) const
+    virtual Qt::ItemFlags flags(const T &value, int column) const
     {
-        return Qt::ItemIsSelectable | Qt::ItemIsEnabled | Qt::ItemIsEditable;
+        Qt::ItemFlags base = Qt::ItemIsSelectable | Qt::ItemIsEnabled;
+        if (column == 0)
+            base |= Qt::ItemIsEditable;
+        return base;
     }
 
     // ---------- Structural overrides ----------
@@ -51,13 +66,15 @@ public:
 
     int columnCount(const QModelIndex &parent = QModelIndex()) const override
     {
-        return parent.isValid() ? 0 : 1;
+        return parent.isValid() ? 0 : static_cast<int>(m_headers.size());
     }
 
     QModelIndex index(int row, int column,
                       const QModelIndex &parent = QModelIndex()) const override
     {
-        if (parent.isValid() || column != 0)
+        if (parent.isValid())
+            return {};
+        if (column < 0 || column >= static_cast<int>(m_headers.size()))
             return {};
         if (row < 0 || row >= static_cast<int>(m_items.size()))
             return {};
@@ -65,6 +82,15 @@ public:
     }
 
     QModelIndex parent(const QModelIndex &) const override { return {}; }
+
+    QVariant headerData(int section, Qt::Orientation orientation,
+                        int role = Qt::DisplayRole) const override
+    {
+        if (orientation == Qt::Horizontal && role == Qt::DisplayRole
+            && section >= 0 && section < m_headers.size())
+            return m_headers.at(section);
+        return QAbstractItemModel::headerData(section, orientation, role);
+    }
 
     // ---------- Read path ----------
 
@@ -81,10 +107,12 @@ public:
             return;
 
         const T &value = m_items[static_cast<std::size_t>(index.row())];
+        const int column = index.column();
         for (QModelRoleData &roleData : roleDataSpan) {
             if (roleData.role() == ValueRole) {
                 roleData.setData(QVariant::fromValue(value));
-            } else if (QVariant projected = data(value, roleData.role()); projected.isValid()) {
+            } else if (QVariant projected = data(value, column, roleData.role());
+                       projected.isValid()) {
                 roleData.data() = std::move(projected);
             } else {
                 roleData.clearData();
@@ -96,7 +124,30 @@ public:
     {
         if (!index.isValid())
             return Qt::NoItemFlags;
-        return flags(this->getStorageValue(index));
+        return flags(this->getStorageValue(index), index.column());
+    }
+
+    // Writes only the column-0 cell (the whole T). Columns > 0 are read-only:
+    // multi-column editing will arrive with BasicTableModel<T>. A subclass that
+    // re-enables ItemIsEditable on a column > 0 via its flags() override will
+    // see its writes silently rejected here — keep them aligned.
+    bool setData(const QModelIndex &index, const QVariant &value,
+                 int role = Qt::EditRole) override
+    {
+        if (role != Qt::EditRole)
+            std::terminate();
+        if (!this->checkIndex(index, QAbstractItemModel::CheckIndexOption::IndexIsValid))
+            return false;
+        if (index.column() != 0)
+            return false;
+        if (!value.canConvert<T>())
+            return false;
+
+        this->setStorageValue(index, value.value<T>());
+        const QModelIndex left = this->index(index.row(), 0);
+        const QModelIndex right = this->index(index.row(), this->columnCount() - 1);
+        emit this->dataChanged(left, right);
+        return true;
     }
 
     // ---------- Container API ----------
@@ -229,6 +280,7 @@ protected:
 
 private:
     std::vector<T> m_items;
+    QStringList m_headers{QString()};
 };
 
 } // namespace cute

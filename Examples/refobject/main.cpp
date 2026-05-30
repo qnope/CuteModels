@@ -20,8 +20,10 @@ public:
     using BasicListModel<QString>::BasicListModel;
     using BasicListModel<QString>::data;
 
-    QVariant data(const QString &value, int role) const override
+    QVariant data(const QString &value, int column, int role) const override
     {
+        if (column != 0)
+            return {};
         if (role == Qt::DisplayRole || role == Qt::EditRole)
             return value;
         return {};
