@@ -429,7 +429,7 @@ TEST_F(BasicListModelTest, OperatorSubscriptReads)
     EXPECT_EQ(ref->size(), 5);
 }
 
-TEST_F(BasicListModelTest, OperatorSubscriptHoldsStableSnapshotAndTrackedIndex)
+TEST_F(BasicListModelTest, OperatorSubscriptHoldsStableSnapshot)
 {
     model.push_back(QStringLiteral("a"));
     model.push_back(QStringLiteral("b"));
@@ -439,7 +439,6 @@ TEST_F(BasicListModelTest, OperatorSubscriptHoldsStableSnapshotAndTrackedIndex)
     model.insert(0, QStringLiteral("X"));
 
     EXPECT_EQ(*ref, QStringLiteral("b"));
-    EXPECT_EQ(ref.index().row(), 2);
 }
 
 TEST_F(BasicListModelTest, SetDataDrivesRefValueChanged)

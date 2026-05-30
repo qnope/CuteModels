@@ -14,10 +14,9 @@ namespace cute {
 
 // Read-only view over a single model item. At construction the value is
 // retrieved through the abstract QAbstractItemModel::data(ValueRole) interface
-// and kept inside the proxy, so dereference returns a stable reference (or
-// pointer) into local storage. The proxy is therefore a snapshot: subsequent
-// model writes do not refresh it. The QPersistentModelIndex is preserved so
-// callers can still observe how the original row moved.
+// and kept inside the proxy; the index is not stored, since the proxy is a
+// frozen snapshot — there is nothing to follow after the value is captured.
+// Dereference returns a stable reference (or pointer) into local storage.
 //
 // Constructing with an invalid index (or with a model that does not expose
 // ValueRole) terminates — once a proxy exists, dereference cannot fail.
@@ -25,12 +24,11 @@ template <typename T>
 class ItemConstProxy
 {
 public:
-    explicit ItemConstProxy(QPersistentModelIndex index)
-        : m_index(std::move(index))
-        , m_value([this] {
-            if (!m_index.isValid())
+    explicit ItemConstProxy(const QModelIndex &index)
+        : m_value([&] {
+            if (!index.isValid())
                 std::terminate();
-            QVariant variant = m_index.data(ValueRole);
+            QVariant variant = index.data(ValueRole);
             if (!variant.isValid())
                 std::terminate();
             return variant.template value<T>();
@@ -40,10 +38,7 @@ public:
     const T &operator*() const noexcept { return m_value; }
     const T *operator->() const noexcept { return std::addressof(m_value); }
 
-    const QPersistentModelIndex &index() const noexcept { return m_index; }
-
 private:
-    QPersistentModelIndex m_index;
     T m_value;
 };
 
