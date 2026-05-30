@@ -119,4 +119,5 @@ ctest --preset default --output-on-failure
 - `refobject` — example executable (`CUTEMODEL_BUILD_EXAMPLES`, default ON).
 
 ## Testing
-Always use `QAbstractItemModelTester`
+1. Always use `QAbstractItemModelTester`.
+2. Always try to catch signals through `QSignalSpy`. Never use lambda that increment something or things like that.

@@ -5,6 +5,7 @@
 #include <gtest/gtest.h>
 
 #include <QAbstractListModel>
+#include <QSignalSpy>
 #include <QString>
 #include <QStringList>
 #include <QVariant>
@@ -79,12 +80,11 @@ TEST(Ref, EmitsValueChangedOnMatchingDataChanged)
 
     Ref<QString> ref(QPersistentModelIndex(model->index(0, 0)));
 
-    int changes = 0;
-    QObject::connect(&ref, &cute::RefBase::valueChanged, [&] { ++changes; });
+    QSignalSpy valueChangedSpy(&ref, &cute::RefBase::valueChanged);
 
     model->setData(model->index(0, 0), QStringLiteral("b"), ValueRole);
 
-    EXPECT_EQ(changes, 1);
+    EXPECT_EQ(valueChangedSpy.count(), 1);
     EXPECT_EQ(ref.getValue(), QStringLiteral("b"));
 }
 
@@ -101,6 +101,5 @@ TEST(GetAsRefObject, ConstructsTypedRef)
 
     ASSERT_NE(ref, nullptr);
     EXPECT_EQ(ref->getValue(), QStringLiteral("world"));
-
-    delete ref;
+    EXPECT_EQ(ref->parent(), model.get());
 }

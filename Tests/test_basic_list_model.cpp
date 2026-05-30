@@ -11,8 +11,8 @@
 #include <QList>
 #include <QModelIndex>
 #include <QModelRoleData>
-#include <QObject>
 #include <QPersistentModelIndex>
+#include <QSignalSpy>
 #include <QString>
 #include <QStringList>
 #include <QVariant>
@@ -63,12 +63,24 @@ public:
     }
 };
 
+class BasicListModelTest : public ::testing::Test
+{
+protected:
+    StringListModel model;
+    QAbstractItemModelTester tester{&model, QAbstractItemModelTester::FailureReportingMode::Fatal};
+};
+
+class PodListModelTest : public ::testing::Test
+{
+protected:
+    PodListModel model;
+    QAbstractItemModelTester tester{&model, QAbstractItemModelTester::FailureReportingMode::Fatal};
+};
+
 } // namespace
 
-TEST(BasicListModel, RowCountReflectsStorage)
+TEST_F(BasicListModelTest, RowCountReflectsStorage)
 {
-    StringListModel model;
-    QAbstractItemModelTester tester(&model, QAbstractItemModelTester::FailureReportingMode::Fatal);
     EXPECT_EQ(model.rowCount(), 0);
     EXPECT_TRUE(model.empty());
 
@@ -81,37 +93,34 @@ TEST(BasicListModel, RowCountReflectsStorage)
     EXPECT_EQ(model.rowCount(model.index(0, 0)), 0);
 }
 
-TEST(BasicListModel, ValueRoleRoundTripFromBase)
+TEST_F(BasicListModelTest, ValueRoleRoundTrip)
 {
-    StringListModel strings;
-    QAbstractItemModelTester stringsTester(&strings, QAbstractItemModelTester::FailureReportingMode::Fatal);
-    strings.push_back(QStringLiteral("hello"));
-    EXPECT_EQ(strings.index(0, 0).data(ValueRole).value<QString>(),
-              QStringLiteral("hello"));
+    model.push_back(QStringLiteral("hello"));
 
-    PodListModel pods;
-    QAbstractItemModelTester podsTester(&pods, QAbstractItemModelTester::FailureReportingMode::Fatal);
-    pods.push_back(Pod{7, QStringLiteral("seven")});
-    const QVariant valueVariant = pods.index(0, 0).data(ValueRole);
+    EXPECT_EQ(model.index(0, 0).data(ValueRole).value<QString>(),
+              QStringLiteral("hello"));
+}
+
+TEST_F(PodListModelTest, ValueRoleRoundTrip)
+{
+    model.push_back(Pod{7, QStringLiteral("seven")});
+
+    const QVariant valueVariant = model.index(0, 0).data(ValueRole);
     ASSERT_TRUE(valueVariant.isValid());
     EXPECT_TRUE(valueVariant.value<Pod>() == (Pod{7, QStringLiteral("seven")}));
 }
 
-TEST(BasicListModel, ProjectionDrivesDisplayRole)
+TEST_F(PodListModelTest, ProjectionDrivesDisplayRole)
 {
-    PodListModel pods;
-    QAbstractItemModelTester podsTester(&pods, QAbstractItemModelTester::FailureReportingMode::Fatal);
-    pods.push_back(Pod{1, QStringLiteral("one")});
+    model.push_back(Pod{1, QStringLiteral("one")});
 
-    EXPECT_EQ(pods.index(0, 0).data(Qt::DisplayRole).toString(),
+    EXPECT_EQ(model.index(0, 0).data(Qt::DisplayRole).toString(),
               QStringLiteral("one"));
-    EXPECT_FALSE(pods.index(0, 0).data(9999).isValid());
+    EXPECT_FALSE(model.index(0, 0).data(9999).isValid());
 }
 
-TEST(BasicListModel, MultiDataFillsHandledRoles)
+TEST_F(BasicListModelTest, MultiDataFillsHandledRoles)
 {
-    StringListModel model;
-    QAbstractItemModelTester tester(&model, QAbstractItemModelTester::FailureReportingMode::Fatal);
     model.push_back(QStringLiteral("x"));
 
     QModelRoleData roles[] = {
@@ -127,241 +136,344 @@ TEST(BasicListModel, MultiDataFillsHandledRoles)
     EXPECT_FALSE(roles[2].data().isValid());
 }
 
-TEST(BasicListModel, PushBackEmitsRowsInserted)
+TEST_F(BasicListModelTest, PushBackEmitsRowsInserted)
 {
-    StringListModel model;
-    QAbstractItemModelTester tester(&model, QAbstractItemModelTester::FailureReportingMode::Fatal);
-
-    int inserts = 0;
-    int first = -1;
-    int last = -1;
-    QObject::connect(&model, &QAbstractItemModel::rowsInserted,
-                     [&](const QModelIndex &, int f, int l) {
-                         ++inserts;
-                         first = f;
-                         last = l;
-                     });
+    QSignalSpy insertedSpy(&model, &QAbstractItemModel::rowsInserted);
 
     model.push_back(QStringLiteral("a"));
 
-    EXPECT_EQ(inserts, 1);
-    EXPECT_EQ(first, 0);
-    EXPECT_EQ(last, 0);
+    ASSERT_EQ(insertedSpy.count(), 1);
+    const QList<QVariant> args = insertedSpy.at(0);
+    EXPECT_EQ(args.at(1).toInt(), 0);
+    EXPECT_EQ(args.at(2).toInt(), 0);
 }
 
-TEST(BasicListModel, EmplaceBackConstructsInPlace)
+TEST_F(PodListModelTest, EmplaceBackConstructsInPlace)
 {
-    PodListModel model;
-    QAbstractItemModelTester tester(&model, QAbstractItemModelTester::FailureReportingMode::Fatal);
-
-    int inserts = 0;
-    QObject::connect(&model, &QAbstractItemModel::rowsInserted,
-                     [&](const QModelIndex &, int, int) { ++inserts; });
+    QSignalSpy insertedSpy(&model, &QAbstractItemModel::rowsInserted);
 
     Pod &ref = model.emplace_back(Pod{42, QStringLiteral("answer")});
 
     EXPECT_EQ(ref.id, 42);
-    EXPECT_EQ(inserts, 1);
+    EXPECT_EQ(insertedSpy.count(), 1);
     EXPECT_EQ(model.at(0).label, QStringLiteral("answer"));
 }
 
-TEST(BasicListModel, SetDataEmitsDataChangedAndUpdatesValue)
+TEST_F(BasicListModelTest, InsertShiftsRows)
 {
-    StringListModel model;
-    QAbstractItemModelTester tester(&model, QAbstractItemModelTester::FailureReportingMode::Fatal);
-    model.push_back(QStringLiteral("a"));
-
-    int changes = 0;
-    QModelIndex tl;
-    QModelIndex br;
-    QObject::connect(&model, &QAbstractItemModel::dataChanged,
-                     [&](const QModelIndex &topLeft, const QModelIndex &bottomRight) {
-                         ++changes;
-                         tl = topLeft;
-                         br = bottomRight;
-                     });
-
-    EXPECT_TRUE(model.setData(model.index(0, 0), QStringLiteral("b"), ValueRole));
-    EXPECT_EQ(model.at(0), QStringLiteral("b"));
-    EXPECT_EQ(changes, 1);
-    EXPECT_EQ(tl, model.index(0, 0));
-    EXPECT_EQ(br, model.index(0, 0));
-
-    PodListModel pods;
-    QAbstractItemModelTester podsTester(&pods, QAbstractItemModelTester::FailureReportingMode::Fatal);
-    pods.push_back(Pod{1, QStringLiteral("one")});
-    int podChanges = 0;
-    QObject::connect(&pods, &QAbstractItemModel::dataChanged,
-                     [&](const QModelIndex &, const QModelIndex &) { ++podChanges; });
-
-    EXPECT_FALSE(pods.setData(pods.index(0, 0), QStringLiteral("nope"), ValueRole));
-    EXPECT_EQ(podChanges, 0);
-}
-
-TEST(BasicListModel, OperatorSubscriptWriteEmitsDataChanged)
-{
-    StringListModel model;
-    QAbstractItemModelTester tester(&model, QAbstractItemModelTester::FailureReportingMode::Fatal);
-    model.push_back(QStringLiteral("a"));
-
-    int changes = 0;
-    QObject::connect(&model, &QAbstractItemModel::dataChanged,
-                     [&](const QModelIndex &, const QModelIndex &) { ++changes; });
-
-    model[0] = QStringLiteral("z");
-    EXPECT_EQ(model.at(0), QStringLiteral("z"));
-    EXPECT_EQ(changes, 1);
-
-    QString read = model[0];
-    EXPECT_EQ(read, QStringLiteral("z"));
-    EXPECT_EQ(changes, 1);
-}
-
-TEST(BasicListModel, OperatorSubscriptDrivesRefValueChanged)
-{
-    StringListModel model;
-    QAbstractItemModelTester tester(&model, QAbstractItemModelTester::FailureReportingMode::Fatal);
-    model.push_back(QStringLiteral("a"));
-
-    Ref<QString> ref(QPersistentModelIndex(model.index(0, 0)));
-    int changes = 0;
-    QObject::connect(&ref, &cute::RefBase::valueChanged, [&] { ++changes; });
-
-    model[0] = QStringLiteral("new");
-
-    EXPECT_EQ(changes, 1);
-    EXPECT_EQ(ref.getValue(), QStringLiteral("new"));
-}
-
-TEST(BasicListModel, SetDataDrivesRefValueChanged)
-{
-    StringListModel model;
-    QAbstractItemModelTester tester(&model, QAbstractItemModelTester::FailureReportingMode::Fatal);
-    model.push_back(QStringLiteral("a"));
-
-    Ref<QString> *ref = getAsRefObject<Ref<QString>>(model.index(0, 0));
-    ASSERT_NE(ref, nullptr);
-    int changes = 0;
-    QObject::connect(ref, &cute::RefBase::valueChanged, [&] { ++changes; });
-
-    model.setData(model.index(0, 0), QStringLiteral("b"), ValueRole);
-
-    EXPECT_EQ(changes, 1);
-    EXPECT_EQ(ref->getValue(), QStringLiteral("b"));
-
-    delete ref;
-}
-
-TEST(BasicListModel, EraseEmitsRowsRemoved)
-{
-    StringListModel model;
-    QAbstractItemModelTester tester(&model, QAbstractItemModelTester::FailureReportingMode::Fatal);
-    model.push_back(QStringLiteral("a"));
-    model.push_back(QStringLiteral("b"));
-    model.push_back(QStringLiteral("c"));
-
-    int removes = 0;
-    int first = -1;
-    int last = -1;
-    QObject::connect(&model, &QAbstractItemModel::rowsRemoved,
-                     [&](const QModelIndex &, int f, int l) {
-                         ++removes;
-                         first = f;
-                         last = l;
-                     });
-
-    model.erase(1);
-
-    EXPECT_EQ(removes, 1);
-    EXPECT_EQ(first, 1);
-    EXPECT_EQ(last, 1);
-    EXPECT_EQ(model.size(), 2);
-    EXPECT_EQ(model.at(0), QStringLiteral("a"));
-    EXPECT_EQ(model.at(1), QStringLiteral("c"));
-}
-
-TEST(BasicListModel, EraseRangeRemovesInclusive)
-{
-    StringListModel model;
-    QAbstractItemModelTester tester(&model, QAbstractItemModelTester::FailureReportingMode::Fatal);
-    for (const char *v : {"a", "b", "c", "d"})
-        model.push_back(QString::fromUtf8(v));
-
-    model.erase(1, 2);
-
-    EXPECT_EQ(model.size(), 2);
-    EXPECT_EQ(model.at(0), QStringLiteral("a"));
-    EXPECT_EQ(model.at(1), QStringLiteral("d"));
-}
-
-TEST(BasicListModel, InsertShiftsRows)
-{
-    StringListModel model;
-    QAbstractItemModelTester tester(&model, QAbstractItemModelTester::FailureReportingMode::Fatal);
     model.push_back(QStringLiteral("a"));
     model.push_back(QStringLiteral("c"));
 
-    int inserts = 0;
-    int first = -1;
-    QObject::connect(&model, &QAbstractItemModel::rowsInserted,
-                     [&](const QModelIndex &, int f, int) {
-                         ++inserts;
-                         first = f;
-                     });
+    QSignalSpy insertedSpy(&model, &QAbstractItemModel::rowsInserted);
 
     model.insert(1, QStringLiteral("b"));
 
-    EXPECT_EQ(inserts, 1);
-    EXPECT_EQ(first, 1);
+    ASSERT_EQ(insertedSpy.count(), 1);
+    const QList<QVariant> args = insertedSpy.at(0);
+    EXPECT_EQ(args.at(1).toInt(), 1);
+    EXPECT_EQ(args.at(2).toInt(), 1);
     EXPECT_EQ(model.size(), 3);
     EXPECT_EQ(model.at(0), QStringLiteral("a"));
     EXPECT_EQ(model.at(1), QStringLiteral("b"));
     EXPECT_EQ(model.at(2), QStringLiteral("c"));
 }
 
-TEST(BasicListModel, ClearResetsModel)
+TEST_F(BasicListModelTest, AppendRangeEmitsSingleRowsInserted)
 {
-    StringListModel model;
-    QAbstractItemModelTester tester(&model, QAbstractItemModelTester::FailureReportingMode::Fatal);
     model.push_back(QStringLiteral("a"));
-    model.push_back(QStringLiteral("b"));
 
-    int resets = 0;
-    QObject::connect(&model, &QAbstractItemModel::modelReset, [&] { ++resets; });
+    QSignalSpy insertedSpy(&model, &QAbstractItemModel::rowsInserted);
 
-    model.clear();
+    model.append_range({QStringLiteral("b"), QStringLiteral("c"), QStringLiteral("d")});
 
-    EXPECT_EQ(resets, 1);
-    EXPECT_EQ(model.size(), 0);
+    ASSERT_EQ(insertedSpy.count(), 1);
+    const QList<QVariant> args = insertedSpy.at(0);
+    EXPECT_EQ(args.at(1).toInt(), 1);
+    EXPECT_EQ(args.at(2).toInt(), 3);
+    EXPECT_EQ(model.size(), 4);
+    EXPECT_EQ(model.at(0), QStringLiteral("a"));
+    EXPECT_EQ(model.at(1), QStringLiteral("b"));
+    EXPECT_EQ(model.at(2), QStringLiteral("c"));
+    EXPECT_EQ(model.at(3), QStringLiteral("d"));
 }
 
-TEST(BasicListModel, ResizeGrowsAndShrinks)
+TEST_F(BasicListModelTest, AppendRangeEmptyIsNoOp)
 {
-    StringListModel model;
-    QAbstractItemModelTester tester(&model, QAbstractItemModelTester::FailureReportingMode::Fatal);
     model.push_back(QStringLiteral("a"));
 
-    int inserts = 0;
-    int removes = 0;
-    QObject::connect(&model, &QAbstractItemModel::rowsInserted,
-                     [&](const QModelIndex &, int, int) { ++inserts; });
-    QObject::connect(&model, &QAbstractItemModel::rowsRemoved,
-                     [&](const QModelIndex &, int, int) { ++removes; });
+    QSignalSpy insertedSpy(&model, &QAbstractItemModel::rowsInserted);
 
-    model.resize(3);
-    EXPECT_EQ(inserts, 1);
-    EXPECT_EQ(model.size(), 3);
+    model.append_range({});
 
-    model.resize(1);
-    EXPECT_EQ(removes, 1);
+    EXPECT_EQ(insertedSpy.count(), 0);
     EXPECT_EQ(model.size(), 1);
     EXPECT_EQ(model.at(0), QStringLiteral("a"));
 }
 
-TEST(BasicListModel, ConstIterationVisitsAllInOrder)
+TEST_F(BasicListModelTest, InsertRangeShiftsRows)
 {
-    StringListModel model;
-    QAbstractItemModelTester tester(&model, QAbstractItemModelTester::FailureReportingMode::Fatal);
+    model.push_back(QStringLiteral("a"));
+    model.push_back(QStringLiteral("d"));
+
+    QSignalSpy insertedSpy(&model, &QAbstractItemModel::rowsInserted);
+
+    model.insert_range(1, {QStringLiteral("b"), QStringLiteral("c")});
+
+    ASSERT_EQ(insertedSpy.count(), 1);
+    const QList<QVariant> args = insertedSpy.at(0);
+    EXPECT_EQ(args.at(1).toInt(), 1);
+    EXPECT_EQ(args.at(2).toInt(), 2);
+    EXPECT_EQ(model.size(), 4);
+    EXPECT_EQ(model.at(0), QStringLiteral("a"));
+    EXPECT_EQ(model.at(1), QStringLiteral("b"));
+    EXPECT_EQ(model.at(2), QStringLiteral("c"));
+    EXPECT_EQ(model.at(3), QStringLiteral("d"));
+}
+
+TEST_F(BasicListModelTest, InsertRangeAtEndAppends)
+{
+    model.push_back(QStringLiteral("a"));
+
+    QSignalSpy insertedSpy(&model, &QAbstractItemModel::rowsInserted);
+
+    model.insert_range(model.size(), {QStringLiteral("b"), QStringLiteral("c")});
+
+    ASSERT_EQ(insertedSpy.count(), 1);
+    const QList<QVariant> args = insertedSpy.at(0);
+    EXPECT_EQ(args.at(1).toInt(), 1);
+    EXPECT_EQ(args.at(2).toInt(), 2);
+    EXPECT_EQ(model.size(), 3);
+    EXPECT_EQ(model.at(2), QStringLiteral("c"));
+}
+
+TEST_F(BasicListModelTest, InsertRangeEmptyIsNoOp)
+{
+    model.push_back(QStringLiteral("a"));
+
+    QSignalSpy insertedSpy(&model, &QAbstractItemModel::rowsInserted);
+
+    model.insert_range(0, {});
+
+    EXPECT_EQ(insertedSpy.count(), 0);
+    EXPECT_EQ(model.size(), 1);
+    EXPECT_EQ(model.at(0), QStringLiteral("a"));
+}
+
+TEST_F(BasicListModelTest, SetDataEmitsDataChangedAndUpdatesValue)
+{
+    model.push_back(QStringLiteral("a"));
+
+    QSignalSpy changedSpy(&model, &QAbstractItemModel::dataChanged);
+
+    EXPECT_TRUE(model.setData(model.index(0, 0), QStringLiteral("b"), ValueRole));
+    EXPECT_EQ(model.at(0), QStringLiteral("b"));
+    ASSERT_EQ(changedSpy.count(), 1);
+    const QList<QVariant> args = changedSpy.at(0);
+    EXPECT_EQ(args.at(0).value<QModelIndex>(), model.index(0, 0));
+    EXPECT_EQ(args.at(1).value<QModelIndex>(), model.index(0, 0));
+}
+
+TEST_F(PodListModelTest, SetDataRejectsIncompatibleValue)
+{
+    model.push_back(Pod{1, QStringLiteral("one")});
+
+    QSignalSpy changedSpy(&model, &QAbstractItemModel::dataChanged);
+
+    EXPECT_FALSE(model.setData(model.index(0, 0), QStringLiteral("nope"), ValueRole));
+    EXPECT_EQ(changedSpy.count(), 0);
+}
+
+TEST_F(BasicListModelTest, OperatorSubscriptWriteEmitsDataChanged)
+{
+    model.push_back(QStringLiteral("a"));
+
+    QSignalSpy changedSpy(&model, &QAbstractItemModel::dataChanged);
+
+    model[0] = QStringLiteral("z");
+    EXPECT_EQ(model.at(0), QStringLiteral("z"));
+    EXPECT_EQ(changedSpy.count(), 1);
+
+    QString read = model[0];
+    EXPECT_EQ(read, QStringLiteral("z"));
+    EXPECT_EQ(changedSpy.count(), 1);
+}
+
+TEST_F(BasicListModelTest, OperatorSubscriptDrivesRefValueChanged)
+{
+    model.push_back(QStringLiteral("a"));
+
+    Ref<QString> ref(QPersistentModelIndex(model.index(0, 0)));
+    QSignalSpy valueChangedSpy(&ref, &cute::RefBase::valueChanged);
+
+    model[0] = QStringLiteral("new");
+
+    EXPECT_EQ(valueChangedSpy.count(), 1);
+    EXPECT_EQ(ref.getValue(), QStringLiteral("new"));
+}
+
+TEST_F(BasicListModelTest, SetDataDrivesRefValueChanged)
+{
+    model.push_back(QStringLiteral("a"));
+
+    Ref<QString> *ref = getAsRefObject<Ref<QString>>(model.index(0, 0));
+    ASSERT_NE(ref, nullptr);
+    QSignalSpy valueChangedSpy(ref, &cute::RefBase::valueChanged);
+
+    model.setData(model.index(0, 0), QStringLiteral("b"), ValueRole);
+
+    EXPECT_EQ(valueChangedSpy.count(), 1);
+    EXPECT_EQ(ref->getValue(), QStringLiteral("b"));
+}
+
+TEST_F(BasicListModelTest, EraseEmitsRowsRemoved)
+{
+    model.push_back(QStringLiteral("a"));
+    model.push_back(QStringLiteral("b"));
+    model.push_back(QStringLiteral("c"));
+
+    QSignalSpy removedSpy(&model, &QAbstractItemModel::rowsRemoved);
+
+    model.erase(1);
+
+    ASSERT_EQ(removedSpy.count(), 1);
+    const QList<QVariant> args = removedSpy.at(0);
+    EXPECT_EQ(args.at(1).toInt(), 1);
+    EXPECT_EQ(args.at(2).toInt(), 1);
+    EXPECT_EQ(model.size(), 2);
+    EXPECT_EQ(model.at(0), QStringLiteral("a"));
+    EXPECT_EQ(model.at(1), QStringLiteral("c"));
+}
+
+TEST_F(BasicListModelTest, EraseRangeRemovesInclusive)
+{
+    for (const char *v : {"a", "b", "c", "d"})
+        model.push_back(QString::fromUtf8(v));
+
+    QSignalSpy removedSpy(&model, &QAbstractItemModel::rowsRemoved);
+
+    model.erase(1, 2);
+
+    ASSERT_EQ(removedSpy.count(), 1);
+    const QList<QVariant> args = removedSpy.at(0);
+    EXPECT_EQ(args.at(1).toInt(), 1);
+    EXPECT_EQ(args.at(2).toInt(), 2);
+    EXPECT_EQ(model.size(), 2);
+    EXPECT_EQ(model.at(0), QStringLiteral("a"));
+    EXPECT_EQ(model.at(1), QStringLiteral("d"));
+}
+
+TEST_F(BasicListModelTest, ClearResetsModel)
+{
+    model.push_back(QStringLiteral("a"));
+    model.push_back(QStringLiteral("b"));
+
+    QSignalSpy resetSpy(&model, &QAbstractItemModel::modelReset);
+
+    model.clear();
+
+    EXPECT_EQ(resetSpy.count(), 1);
+    EXPECT_EQ(model.size(), 0);
+}
+
+TEST_F(BasicListModelTest, ResetReplacesContents)
+{
+    model.push_back(QStringLiteral("old1"));
+    model.push_back(QStringLiteral("old2"));
+
+    QSignalSpy resetSpy(&model, &QAbstractItemModel::modelReset);
+
+    model.reset({QStringLiteral("new1"),
+                 QStringLiteral("new2"),
+                 QStringLiteral("new3")});
+
+    EXPECT_EQ(resetSpy.count(), 1);
+    EXPECT_EQ(model.size(), 3);
+    EXPECT_EQ(model.at(0), QStringLiteral("new1"));
+    EXPECT_EQ(model.at(1), QStringLiteral("new2"));
+    EXPECT_EQ(model.at(2), QStringLiteral("new3"));
+}
+
+TEST_F(BasicListModelTest, ResetWithEmptyClears)
+{
+    model.push_back(QStringLiteral("a"));
+    model.push_back(QStringLiteral("b"));
+
+    QSignalSpy resetSpy(&model, &QAbstractItemModel::modelReset);
+
+    model.reset({});
+
+    EXPECT_EQ(resetSpy.count(), 1);
+    EXPECT_TRUE(model.empty());
+}
+
+TEST_F(BasicListModelTest, ResizeGrowsAndShrinks)
+{
+    model.push_back(QStringLiteral("a"));
+
+    QSignalSpy insertedSpy(&model, &QAbstractItemModel::rowsInserted);
+    QSignalSpy removedSpy(&model, &QAbstractItemModel::rowsRemoved);
+
+    model.resize(3);
+    EXPECT_EQ(insertedSpy.count(), 1);
+    EXPECT_EQ(model.size(), 3);
+
+    model.resize(1);
+    EXPECT_EQ(removedSpy.count(), 1);
+    EXPECT_EQ(model.size(), 1);
+    EXPECT_EQ(model.at(0), QStringLiteral("a"));
+}
+
+TEST_F(BasicListModelTest, ResizeWithDefaultValueFillsNewRows)
+{
+    model.push_back(QStringLiteral("a"));
+
+    QSignalSpy insertedSpy(&model, &QAbstractItemModel::rowsInserted);
+
+    model.resize(4, QStringLiteral("fill"));
+
+    ASSERT_EQ(insertedSpy.count(), 1);
+    const QList<QVariant> args = insertedSpy.at(0);
+    EXPECT_EQ(args.at(1).toInt(), 1);
+    EXPECT_EQ(args.at(2).toInt(), 3);
+    EXPECT_EQ(model.size(), 4);
+    EXPECT_EQ(model.at(0), QStringLiteral("a"));
+    EXPECT_EQ(model.at(1), QStringLiteral("fill"));
+    EXPECT_EQ(model.at(2), QStringLiteral("fill"));
+    EXPECT_EQ(model.at(3), QStringLiteral("fill"));
+}
+
+TEST_F(BasicListModelTest, ResizeShrinkIgnoresDefaultValue)
+{
+    model.push_back(QStringLiteral("a"));
+    model.push_back(QStringLiteral("b"));
+    model.push_back(QStringLiteral("c"));
+
+    QSignalSpy removedSpy(&model, &QAbstractItemModel::rowsRemoved);
+
+    model.resize(1, QStringLiteral("unused"));
+
+    ASSERT_EQ(removedSpy.count(), 1);
+    EXPECT_EQ(model.size(), 1);
+    EXPECT_EQ(model.at(0), QStringLiteral("a"));
+}
+
+TEST_F(BasicListModelTest, ResizeToSameSizeIsNoOp)
+{
+    model.push_back(QStringLiteral("a"));
+    model.push_back(QStringLiteral("b"));
+
+    QSignalSpy insertedSpy(&model, &QAbstractItemModel::rowsInserted);
+    QSignalSpy removedSpy(&model, &QAbstractItemModel::rowsRemoved);
+
+    model.resize(2, QStringLiteral("fill"));
+
+    EXPECT_EQ(insertedSpy.count(), 0);
+    EXPECT_EQ(removedSpy.count(), 0);
+    EXPECT_EQ(model.size(), 2);
+}
+
+TEST_F(BasicListModelTest, ConstIterationVisitsAllInOrder)
+{
     const QStringList expected = {QStringLiteral("a"),
                                   QStringLiteral("b"),
                                   QStringLiteral("c")};
@@ -373,4 +485,42 @@ TEST(BasicListModel, ConstIterationVisitsAllInOrder)
         seen.push_back(s);
 
     EXPECT_EQ(seen, expected);
+}
+
+TEST_F(PodListModelTest, RefGetValueReadsPodFromValueRole)
+{
+    model.push_back(Pod{7, QStringLiteral("seven")});
+
+    Ref<Pod> ref(QPersistentModelIndex(model.index(0, 0)));
+
+    EXPECT_TRUE(ref.getValue() == (Pod{7, QStringLiteral("seven")}));
+}
+
+TEST_F(PodListModelTest, OperatorSubscriptDrivesRefValueChanged)
+{
+    model.push_back(Pod{1, QStringLiteral("one")});
+
+    Ref<Pod> ref(QPersistentModelIndex(model.index(0, 0)));
+    QSignalSpy valueChangedSpy(&ref, &cute::RefBase::valueChanged);
+
+    model[0] = Pod{2, QStringLiteral("two")};
+
+    EXPECT_EQ(valueChangedSpy.count(), 1);
+    EXPECT_TRUE(ref.getValue() == (Pod{2, QStringLiteral("two")}));
+}
+
+TEST_F(PodListModelTest, SetDataDrivesRefValueChanged)
+{
+    model.push_back(Pod{1, QStringLiteral("one")});
+
+    Ref<Pod> *ref = getAsRefObject<Ref<Pod>>(model.index(0, 0));
+    ASSERT_NE(ref, nullptr);
+    QSignalSpy valueChangedSpy(ref, &cute::RefBase::valueChanged);
+
+    EXPECT_TRUE(model.setData(model.index(0, 0),
+                              QVariant::fromValue(Pod{42, QStringLiteral("answer")}),
+                              ValueRole));
+
+    EXPECT_EQ(valueChangedSpy.count(), 1);
+    EXPECT_TRUE(ref->getValue() == (Pod{42, QStringLiteral("answer")}));
 }

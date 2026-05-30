@@ -62,27 +62,11 @@ public:
         const T &get() const { return m_model->m_items[index()]; }
         const T *operator->() const { return &m_model->m_items[index()]; }
 
-        ItemRef &operator=(const T &value)
-        {
-            m_model->m_items[index()] = value;
-            m_dirty = true;
-            return *this;
-        }
-
-        ItemRef &operator=(T &&value)
+        ItemRef &operator=(T value)
         {
             m_model->m_items[index()] = std::move(value);
             m_dirty = true;
             return *this;
-        }
-
-        // Edit the value in place over several steps while still emitting a
-        // single dataChanged for the row when this proxy dies.
-        template <typename F>
-        void modify(F &&fn)
-        {
-            fn(m_model->m_items[index()]);
-            m_dirty = true;
         }
 
     private:
@@ -96,6 +80,8 @@ public:
     // Role projection: subclasses describe how a stored value maps to roles
     // other than ValueRole. Return an invalid QVariant for unhandled roles.
     virtual QVariant data(const T &value, int role) const = 0;
+
+    virtual Qt::ItemFlags flags(const T &value) const { return Qt::ItemIsSelectable | Qt::ItemIsEnabled | Qt::ItemIsEditable; }
 
     int rowCount(const QModelIndex &parent = QModelIndex()) const override
     {
@@ -133,7 +119,7 @@ public:
     {
         if (!index.isValid())
             return Qt::NoItemFlags;
-        return Qt::ItemIsSelectable | Qt::ItemIsEnabled | Qt::ItemIsEditable;
+        return flags(m_items[static_cast<std::size_t>(index.row())]);
     }
 
     bool setData(const QModelIndex &index, const QVariant &value,
@@ -163,15 +149,7 @@ public:
 
     const T &at(int row) const { return m_items.at(static_cast<std::size_t>(row)); }
 
-    void push_back(const T &value)
-    {
-        const int row = size();
-        beginInsertRows(QModelIndex(), row, row);
-        m_items.push_back(value);
-        endInsertRows();
-    }
-
-    void push_back(T &&value)
+    void push_back(T value)
     {
         const int row = size();
         beginInsertRows(QModelIndex(), row, row);
@@ -189,17 +167,31 @@ public:
         return ref;
     }
 
-    void insert(int row, const T &value)
-    {
-        beginInsertRows(QModelIndex(), row, row);
-        m_items.insert(m_items.begin() + row, value);
-        endInsertRows();
-    }
-
-    void insert(int row, T &&value)
+    void insert(int row, T value)
     {
         beginInsertRows(QModelIndex(), row, row);
         m_items.insert(m_items.begin() + row, std::move(value));
+        endInsertRows();
+    }
+
+    void append_range(const std::vector<T> &values)
+    {
+        if (values.empty())
+            return;
+        const int first = size();
+        const int last = first + static_cast<int>(values.size()) - 1;
+        beginInsertRows(QModelIndex(), first, last);
+        m_items.insert(m_items.end(), values.begin(), values.end());
+        endInsertRows();
+    }
+
+    void insert_range(int row, const std::vector<T> &values)
+    {
+        if (values.empty())
+            return;
+        const int last = row + static_cast<int>(values.size()) - 1;
+        beginInsertRows(QModelIndex(), row, last);
+        m_items.insert(m_items.begin() + row, values.begin(), values.end());
         endInsertRows();
     }
 
@@ -216,23 +208,26 @@ public:
 
     void clear()
     {
+        reset({});
+    }
+
+    void reset(std::vector<T> newItems)
+    {
         beginResetModel();
-        m_items.clear();
+        m_items = std::move(newItems);
         endResetModel();
     }
 
-    void resize(int count)
+    void resize(int count, T defaultValue = T())
     {
         const int current = size();
         if (count < 0 || count == current)
             return;
 
         if (count > current) {
-            if constexpr (std::is_default_constructible_v<T>) {
-                beginInsertRows(QModelIndex(), current, count - 1);
-                m_items.resize(static_cast<std::size_t>(count));
-                endInsertRows();
-            }
+            beginInsertRows(QModelIndex(), current, count - 1);
+            m_items.resize(static_cast<std::size_t>(count), std::move(defaultValue));
+            endInsertRows();
         } else {
             beginRemoveRows(QModelIndex(), count, current - 1);
             m_items.resize(static_cast<std::size_t>(count));
