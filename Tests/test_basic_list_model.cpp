@@ -283,32 +283,163 @@ TEST_F(PodListModelTest, SetDataRejectsIncompatibleValue)
     EXPECT_EQ(changedSpy.count(), 0);
 }
 
-TEST_F(BasicListModelTest, OperatorSubscriptWriteEmitsDataChanged)
+TEST_F(BasicListModelTest, GetMutableEmitsDataChangedOnCommit)
 {
     model.push_back(QStringLiteral("a"));
 
     QSignalSpy changedSpy(&model, &QAbstractItemModel::dataChanged);
 
-    model[0] = QStringLiteral("z");
+    model.getMutable(0) = QStringLiteral("z");
     EXPECT_EQ(model.at(0), QStringLiteral("z"));
     EXPECT_EQ(changedSpy.count(), 1);
 
-    QString read = model[0];
+    QString read = *model[0];
     EXPECT_EQ(read, QStringLiteral("z"));
     EXPECT_EQ(changedSpy.count(), 1);
 }
 
-TEST_F(BasicListModelTest, OperatorSubscriptDrivesRefValueChanged)
+TEST_F(BasicListModelTest, GetMutableDrivesRefValueChanged)
 {
     model.push_back(QStringLiteral("a"));
 
     Ref<QString> ref(QPersistentModelIndex(model.index(0, 0)));
     QSignalSpy valueChangedSpy(&ref, &cute::RefBase::valueChanged);
 
-    model[0] = QStringLiteral("new");
+    model.getMutable(0) = QStringLiteral("new");
 
     EXPECT_EQ(valueChangedSpy.count(), 1);
     EXPECT_EQ(ref.getValue(), QStringLiteral("new"));
+}
+
+TEST_F(BasicListModelTest, GetMutableWritesAreDeferredUntilDestruction)
+{
+    model.push_back(QStringLiteral("a"));
+
+    QSignalSpy changedSpy(&model, &QAbstractItemModel::dataChanged);
+
+    {
+        auto ref = model.getMutable(0);
+        ref = QStringLiteral("b");
+        EXPECT_EQ(model.at(0), QStringLiteral("a"));
+        EXPECT_EQ(changedSpy.count(), 0);
+        const QString &pending = *ref;
+        EXPECT_EQ(pending, QStringLiteral("b"));
+    }
+
+    EXPECT_EQ(model.at(0), QStringLiteral("b"));
+    EXPECT_EQ(changedSpy.count(), 1);
+}
+
+TEST_F(BasicListModelTest, GetMutableCommitsLastWrite)
+{
+    model.push_back(QStringLiteral("a"));
+
+    QSignalSpy changedSpy(&model, &QAbstractItemModel::dataChanged);
+
+    {
+        auto ref = model.getMutable(0);
+        ref = QStringLiteral("b");
+        ref = QStringLiteral("c");
+        ref = QStringLiteral("d");
+    }
+
+    EXPECT_EQ(model.at(0), QStringLiteral("d"));
+    EXPECT_EQ(changedSpy.count(), 1);
+}
+
+TEST_F(BasicListModelTest, GetMutableTracksRowThroughInsert)
+{
+    model.push_back(QStringLiteral("a"));
+    model.push_back(QStringLiteral("b"));
+
+    QSignalSpy changedSpy(&model, &QAbstractItemModel::dataChanged);
+
+    {
+        auto ref = model.getMutable(1);
+        model.insert(0, QStringLiteral("X"));
+        ref = QStringLiteral("B!");
+    }
+
+    EXPECT_EQ(model.size(), 3);
+    EXPECT_EQ(model.at(0), QStringLiteral("X"));
+    EXPECT_EQ(model.at(1), QStringLiteral("a"));
+    EXPECT_EQ(model.at(2), QStringLiteral("B!"));
+
+    ASSERT_EQ(changedSpy.count(), 1);
+    const QList<QVariant> args = changedSpy.at(0);
+    EXPECT_EQ(args.at(0).value<QModelIndex>(), model.index(2, 0));
+    EXPECT_EQ(args.at(1).value<QModelIndex>(), model.index(2, 0));
+}
+
+TEST_F(BasicListModelTest, GetMutableIsNoOpWhenRowErased)
+{
+    model.push_back(QStringLiteral("a"));
+    model.push_back(QStringLiteral("b"));
+
+    QSignalSpy changedSpy(&model, &QAbstractItemModel::dataChanged);
+
+    {
+        auto ref = model.getMutable(0);
+        ref = QStringLiteral("new");
+        model.erase(0);
+    }
+
+    EXPECT_EQ(model.size(), 1);
+    EXPECT_EQ(model.at(0), QStringLiteral("b"));
+    EXPECT_EQ(changedSpy.count(), 0);
+}
+
+TEST_F(BasicListModelTest, GetMutableAlwaysCommitsOnDestruction)
+{
+    model.push_back(QStringLiteral("a"));
+
+    QSignalSpy changedSpy(&model, &QAbstractItemModel::dataChanged);
+
+    {
+        auto ref = model.getMutable(0);
+        // No modification — the proxy still commits its snapshot back.
+    }
+
+    EXPECT_EQ(model.at(0), QStringLiteral("a"));
+    EXPECT_EQ(changedSpy.count(), 1);
+}
+
+TEST_F(BasicListModelTest, GetMutableSupportsInPlaceMutation)
+{
+    model.push_back(QStringLiteral("hello"));
+
+    QSignalSpy changedSpy(&model, &QAbstractItemModel::dataChanged);
+
+    {
+        auto ref = model.getMutable(0);
+        ref->append(QStringLiteral(" world"));
+    }
+
+    EXPECT_EQ(model.at(0), QStringLiteral("hello world"));
+    EXPECT_EQ(changedSpy.count(), 1);
+}
+
+TEST_F(BasicListModelTest, OperatorSubscriptReads)
+{
+    model.push_back(QStringLiteral("hello"));
+
+    auto ref = model[0];
+
+    EXPECT_EQ(*ref, QStringLiteral("hello"));
+    EXPECT_EQ(ref->size(), 5);
+}
+
+TEST_F(BasicListModelTest, OperatorSubscriptHoldsStableSnapshotAndTrackedIndex)
+{
+    model.push_back(QStringLiteral("a"));
+    model.push_back(QStringLiteral("b"));
+
+    auto ref = model[1];
+
+    model.insert(0, QStringLiteral("X"));
+
+    EXPECT_EQ(*ref, QStringLiteral("b"));
+    EXPECT_EQ(ref.index().row(), 2);
 }
 
 TEST_F(BasicListModelTest, SetDataDrivesRefValueChanged)
@@ -496,14 +627,14 @@ TEST_F(PodListModelTest, RefGetValueReadsPodFromValueRole)
     EXPECT_TRUE(ref.getValue() == (Pod{7, QStringLiteral("seven")}));
 }
 
-TEST_F(PodListModelTest, OperatorSubscriptDrivesRefValueChanged)
+TEST_F(PodListModelTest, GetMutableDrivesRefValueChanged)
 {
     model.push_back(Pod{1, QStringLiteral("one")});
 
     Ref<Pod> ref(QPersistentModelIndex(model.index(0, 0)));
     QSignalSpy valueChangedSpy(&ref, &cute::RefBase::valueChanged);
 
-    model[0] = Pod{2, QStringLiteral("two")};
+    model.getMutable(0) = Pod{2, QStringLiteral("two")};
 
     EXPECT_EQ(valueChangedSpy.count(), 1);
     EXPECT_TRUE(ref.getValue() == (Pod{2, QStringLiteral("two")}));
