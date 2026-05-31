@@ -12,6 +12,7 @@
 #include <QSignalSpy>
 #include <QVariant>
 
+#include <exception>
 #include <optional>
 
 using cute::BaseModel;
@@ -20,10 +21,10 @@ using cute::ValueRole;
 namespace {
 
 // Minimal BaseModel<int> with a single storage cell. Exists only to lock the
-// BaseModel contract (storage virtuals + setData role policy + drop adapters)
-// independently from BasicListModel's list-shaped structure. Implements its
-// own multiData since role projection is not part of BaseModel's
-// responsibilities.
+// BaseModel contract (roleNames, value-based drop adapters, and the ValueRole
+// read path that mimeData / drops rely on) independently from BasicListModel's
+// list-shaped structure. BaseModel owns no storage, so this model provides its
+// own cell, multiData (exposing ValueRole) and setData write path.
 class SingleCellModel : public BaseModel<int>
 {
 public:
@@ -60,7 +61,7 @@ public:
     {
         if (!checkIndex(index, CheckIndexOption::IndexIsValid))
             return;
-        const int &value = getStorageValue(index);
+        const int &value = m_value;
         for (QModelRoleData &roleData : roleDataSpan) {
             if (roleData.role() == ValueRole || roleData.role() == Qt::DisplayRole)
                 roleData.setData(QVariant::fromValue(value));
@@ -69,12 +70,23 @@ public:
         }
     }
 
-    int storage() const { return m_value; }
+    // Strict role contract mirrors what each structural subclass owns now that
+    // BaseModel carries no write path: only Qt::EditRole is accepted.
+    bool setData(const QModelIndex &index, const QVariant &value,
+                 int role = Qt::EditRole) override
+    {
+        if (role != Qt::EditRole)
+            std::terminate();
+        if (!checkIndex(index, CheckIndexOption::IndexIsValid))
+            return false;
+        if (!value.canConvert<int>())
+            return false;
+        m_value = value.value<int>();
+        emit dataChanged(index, index);
+        return true;
+    }
 
-protected:
-    const int &getStorageValue(const QModelIndex &) const override { return m_value; }
-    int &getStorageValue(const QModelIndex &) override { return m_value; }
-    void setStorageValue(const QModelIndex &, int value) override { m_value = value; }
+    int storage() const { return m_value; }
 
 private:
     int m_value = 0;
@@ -89,7 +101,7 @@ protected:
 
 } // namespace
 
-TEST_F(BaseModelTest, ValueRoleReadsThroughGetStorageValue)
+TEST_F(BaseModelTest, ValueRoleReadsStoredValue)
 {
     EXPECT_EQ(model.index(0, 0).data(ValueRole).toInt(), 0);
 }

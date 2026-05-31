@@ -6,6 +6,7 @@
 
 #include <QModelIndex>
 #include <QModelRoleData>
+#include <QPersistentModelIndex>
 #include <QString>
 #include <QStringList>
 #include <QVariant>
@@ -30,9 +31,6 @@ template <typename T>
 class BasicListModel : public BaseModel<T>
 {
 public:
-    using BaseModel<T>::at;
-    using BaseModel<T>::getMutable;
-
     using const_iterator = typename std::vector<T>::const_iterator;
 
     // Two ctors declared explicitly (rather than `using BaseModel<T>::BaseModel`)
@@ -129,7 +127,7 @@ public:
     {
         if (!index.isValid())
             return Qt::NoItemFlags;
-        return flags(this->getStorageValue(index), index.column());
+        return flags(m_items[static_cast<std::size_t>(index.row())], index.column());
     }
 
     // Writes only the column-0 cell (the whole T). Columns > 0 are read-only:
@@ -148,7 +146,7 @@ public:
         if (!value.canConvert<T>())
             return false;
 
-        this->setStorageValue(index, value.value<T>());
+        m_items[static_cast<std::size_t>(index.row())] = value.value<T>();
         const QModelIndex left = this->index(index.row(), 0);
         const QModelIndex right = this->index(index.row(), this->columnCount() - 1);
         emit this->dataChanged(left, right);
@@ -243,21 +241,25 @@ public:
         }
     }
 
-    // ---------- Ergonomic int-row accessors (cache-aware reads) ----------
+    // ---------- Ergonomic int-row accessors ----------
+    //
+    // ItemProxy holds a reference straight into m_items (no QVariant
+    // round-trip). An out-of-range row yields an invalid index, which makes
+    // the ItemProxy constructor terminate — callers are expected to pass a
+    // live row.
 
     ItemProxy<const T> at(int row) const
     {
-        return BaseModel<T>::at(this->index(row, 0));
+        return ItemProxy<const T>(m_items[static_cast<std::size_t>(row)],
+                                  QPersistentModelIndex(this->index(row, 0)));
     }
 
-    ItemProxy<const T> operator[](int row) const
-    {
-        return BaseModel<T>::at(this->index(row, 0));
-    }
+    ItemProxy<const T> operator[](int row) const { return at(row); }
 
     ItemProxy<T> getMutable(int row)
     {
-        return BaseModel<T>::getMutable(this->index(row, 0));
+        return ItemProxy<T>(m_items[static_cast<std::size_t>(row)],
+                            QPersistentModelIndex(this->index(row, 0)));
     }
 
     // ---------- Raw-storage iteration (bypasses the cache) ----------
@@ -266,22 +268,6 @@ public:
     const_iterator end() const noexcept { return m_items.end(); }
     const_iterator cbegin() const noexcept { return m_items.cbegin(); }
     const_iterator cend() const noexcept { return m_items.cend(); }
-
-protected:
-    const T &getStorageValue(const QModelIndex &index) const override
-    {
-        return m_items[static_cast<std::size_t>(index.row())];
-    }
-
-    T &getStorageValue(const QModelIndex &index) override
-    {
-        return m_items[static_cast<std::size_t>(index.row())];
-    }
-
-    void setStorageValue(const QModelIndex &index, T value) override
-    {
-        m_items[static_cast<std::size_t>(index.row())] = std::move(value);
-    }
 
 private:
     std::vector<T> m_items;
