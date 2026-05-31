@@ -146,7 +146,7 @@ public:
         if (!value.canConvert<T>())
             return false;
 
-        m_items[static_cast<std::size_t>(index.row())] = value.value<T>();
+        this->setStorageValue(index, value.value<T>());
         const QModelIndex left = this->index(index.row(), 0);
         const QModelIndex right = this->index(index.row(), this->columnCount() - 1);
         emit this->dataChanged(left, right);
@@ -268,6 +268,12 @@ public:
     const_iterator end() const noexcept { return m_items.end(); }
     const_iterator cbegin() const noexcept { return m_items.cbegin(); }
     const_iterator cend() const noexcept { return m_items.cend(); }
+
+protected:
+    void setStorageValue(const QModelIndex &index, T value) override
+    {
+        m_items[static_cast<std::size_t>(index.row())] = std::move(value);
+    }
 
 private:
     std::vector<T> m_items;

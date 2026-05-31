@@ -12,7 +12,6 @@
 #include <QSignalSpy>
 #include <QVariant>
 
-#include <exception>
 #include <optional>
 
 using cute::BaseModel;
@@ -21,10 +20,11 @@ using cute::ValueRole;
 namespace {
 
 // Minimal BaseModel<int> with a single storage cell. Exists only to lock the
-// BaseModel contract (roleNames, value-based drop adapters, and the ValueRole
-// read path that mimeData / drops rely on) independently from BasicListModel's
-// list-shaped structure. BaseModel owns no storage, so this model provides its
-// own cell, multiData (exposing ValueRole) and setData write path.
+// BaseModel contract (setData role policy + setStorageValue write hook,
+// roleNames, value-based drop adapters, and the ValueRole read path that
+// mimeData / drops rely on) independently from BasicListModel's list-shaped
+// structure. Implements its own multiData (exposing ValueRole) since role
+// projection is not part of BaseModel's responsibilities.
 class SingleCellModel : public BaseModel<int>
 {
 public:
@@ -70,23 +70,10 @@ public:
         }
     }
 
-    // Strict role contract mirrors what each structural subclass owns now that
-    // BaseModel carries no write path: only Qt::EditRole is accepted.
-    bool setData(const QModelIndex &index, const QVariant &value,
-                 int role = Qt::EditRole) override
-    {
-        if (role != Qt::EditRole)
-            std::terminate();
-        if (!checkIndex(index, CheckIndexOption::IndexIsValid))
-            return false;
-        if (!value.canConvert<int>())
-            return false;
-        m_value = value.value<int>();
-        emit dataChanged(index, index);
-        return true;
-    }
-
     int storage() const { return m_value; }
+
+protected:
+    void setStorageValue(const QModelIndex &, int value) override { m_value = value; }
 
 private:
     int m_value = 0;

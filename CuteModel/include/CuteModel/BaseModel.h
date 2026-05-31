@@ -10,6 +10,7 @@
 #include <QModelIndexList>
 #include <QVariant>
 
+#include <exception>
 #include <optional>
 #include <type_traits>
 
@@ -21,6 +22,14 @@ namespace cute {
 // QAbstractItemModel (dataChanged, modelReset, …).
 //
 // Responsibilities:
+//   * Strict-contract setData. The only accepted write role is Qt::EditRole —
+//     anything else (Qt::DisplayRole, ValueRole, custom roles) is a programming
+//     error and terminates. The actual write goes through the protected
+//     setStorageValue(index, value) virtual, which structural subclasses
+//     implement against their own storage. No edit cache lives at this layer;
+//     a column-aware cache will come back in a later PR alongside
+//     BasicTableModel<T>.
+//
 //   * Value-based drag/drop. Subclasses override mimeDataForValue(T),
 //     canDropValue(...), and dropValue(...) and see the parent VALUE
 //     (std::optional<T>, nullopt at root) plus the raw mime data, instead
@@ -28,13 +37,13 @@ namespace cute {
 //
 //   * roleNames advertising ValueRole, so QML can bind "value".
 //
-// BaseModel does NOT own any storage. It reads cell values through the public
-// role path — index.data(ValueRole).value<T>() — so it never needs to know
-// how a subclass lays out its rows/columns/tree. Structural subclasses
-// (BasicListModel, BasicTableModel, BasicTreeModel, …) own their storage and
-// the multiData / data / flags / setData overrides that project it to roles;
-// they are also the ones that expose T-reference accessors (ItemProxy) and the
-// write path, because those cannot round-trip through QVariant.
+// BaseModel reads cell values through the public role path —
+// index.data(ValueRole).value<T>() — so it never needs a typed read hook into
+// a subclass's row/column/tree layout. Structural subclasses (BasicListModel,
+// BasicTableModel, BasicTreeModel, …) own their storage and the multiData /
+// data / flags overrides that project it to roles; they are also the ones that
+// expose T-reference accessors (ItemProxy), because those cannot round-trip
+// through QVariant.
 template <typename T>
 class BaseModel : public QAbstractItemModel
 {
@@ -77,6 +86,24 @@ public:
 
     // ---------- QAbstractItemModel overrides ----------
 
+    // Strict role contract: only Qt::EditRole is accepted. Anything else
+    // (including Qt::DisplayRole, ValueRole, custom roles) is a programming
+    // error and terminates. The write itself is delegated to setStorageValue.
+    bool setData(const QModelIndex &index, const QVariant &value,
+                 int role = Qt::EditRole) override
+    {
+        if (role != Qt::EditRole)
+            std::terminate();
+        if (!checkIndex(index, CheckIndexOption::IndexIsValid))
+            return false;
+        if (!value.canConvert<T>())
+            return false;
+
+        setStorageValue(index, value.value<T>());
+        emit dataChanged(index, index); // empty roles list = "all roles changed"
+        return true;
+    }
+
     QHash<int, QByteArray> roleNames() const override
     {
         QHash<int, QByteArray> names = QAbstractItemModel::roleNames();
@@ -111,6 +138,12 @@ public:
             return nullptr;
         return mimeDataForValue(index.data(ValueRole).value<T>());
     }
+
+protected:
+    // Write `value` to the model's underlying storage at `index`. Used by
+    // setData; the ItemProxy<T> path (owned by subclasses) bypasses this and
+    // mutates the reference directly.
+    virtual void setStorageValue(const QModelIndex &index, T value) = 0;
 
 private:
     // "invalid index -> nullopt" wrapper around the public ValueRole read,
