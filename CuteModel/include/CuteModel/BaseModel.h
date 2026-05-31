@@ -24,11 +24,10 @@ namespace cute {
 // Responsibilities:
 //   * Strict-contract setData. The only accepted write role is Qt::EditRole —
 //     anything else (Qt::DisplayRole, ValueRole, custom roles) is a programming
-//     error and terminates. The actual write goes through the protected
-//     setStorageValue(index, value) virtual, which structural subclasses
-//     implement against their own storage. No edit cache lives at this layer;
-//     a column-aware cache will come back in a later PR alongside
-//     BasicTableModel<T>.
+//     error and terminates. The write — and the dataChanged notification that
+//     goes with it — is delegated to the protected setStorageValue(index,
+//     value) virtual, which structural subclasses implement against their own
+//     storage. setData itself only validates the role, index, and value.
 //
 //   * Value-based drag/drop. Subclasses override mimeDataForValue(T),
 //     canDropValue(...), and dropValue(...) and see the parent VALUE
@@ -88,7 +87,8 @@ public:
 
     // Strict role contract: only Qt::EditRole is accepted. Anything else
     // (including Qt::DisplayRole, ValueRole, custom roles) is a programming
-    // error and terminates. The write itself is delegated to setStorageValue.
+    // error and terminates. The write — and the dataChanged emission — is
+    // delegated to setStorageValue.
     bool setData(const QModelIndex &index, const QVariant &value,
                  int role = Qt::EditRole) override
     {
@@ -100,7 +100,6 @@ public:
             return false;
 
         setStorageValue(index, value.value<T>());
-        emit dataChanged(index, index); // empty roles list = "all roles changed"
         return true;
     }
 
@@ -140,9 +139,11 @@ public:
     }
 
 protected:
-    // Write `value` to the model's underlying storage at `index`. Used by
-    // setData; the ItemProxy<T> path (owned by subclasses) bypasses this and
-    // mutates the reference directly.
+    // Write `value` to the model's underlying storage at `index` and emit the
+    // appropriate dataChanged notification. This is the single write+notify
+    // hook used by setData; the ItemProxy<T> path (owned by subclasses)
+    // bypasses it, mutating the reference directly and emitting dataChanged
+    // from its own destructor.
     virtual void setStorageValue(const QModelIndex &index, T value) = 0;
 
 private:
