@@ -22,11 +22,11 @@ namespace cute {
 // column count; each row is still one T, and subclasses project that T to
 // roles per column via data(const T&, int column, int role).
 //
-// Editing is restricted to column 0 (full-T write-through). Columns > 0 are
-// read-only by default — flags(T&, column) strips ItemIsEditable for col>0
-// and setData(index, ..., EditRole) returns false when index.column() != 0.
-// True 2D storage (independent T per cell) is reserved for the future
-// BasicTableModel<T>.
+// A row is one whole T, so an edit always rewrites the entire T and refreshes
+// every column of that row. Columns > 0 are non-editable by default —
+// flags(T&, column) strips ItemIsEditable for col>0 — but the write itself is
+// column-agnostic: only the row matters. True 2D storage (independent T per
+// cell) is reserved for the future BasicTableModel<T>.
 template <typename T>
 class BasicListModel : public BaseModel<T>
 {
@@ -128,29 +128,6 @@ public:
         if (!index.isValid())
             return Qt::NoItemFlags;
         return flags(m_items[static_cast<std::size_t>(index.row())], index.column());
-    }
-
-    // Writes only the column-0 cell (the whole T). Columns > 0 are read-only:
-    // multi-column editing will arrive with BasicTableModel<T>. A subclass that
-    // re-enables ItemIsEditable on a column > 0 via its flags() override will
-    // see its writes silently rejected here — keep them aligned.
-    bool setData(const QModelIndex &index, const QVariant &value,
-                 int role = Qt::EditRole) override
-    {
-        if (role != Qt::EditRole)
-            std::terminate();
-        if (!this->checkIndex(index, QAbstractItemModel::CheckIndexOption::IndexIsValid))
-            return false;
-        if (index.column() != 0)
-            return false;
-        if (!value.canConvert<T>())
-            return false;
-
-        this->setStorageValue(index, value.value<T>());
-        const QModelIndex left = this->index(index.row(), 0);
-        const QModelIndex right = this->index(index.row(), this->columnCount() - 1);
-        emit this->dataChanged(left, right);
-        return true;
     }
 
     // ---------- Container API ----------
@@ -262,7 +239,7 @@ public:
                             QPersistentModelIndex(this->index(row, 0)));
     }
 
-    // ---------- Raw-storage iteration (bypasses the cache) ----------
+    // ---------- Raw-storage iteration ----------
 
     const_iterator begin() const noexcept { return m_items.begin(); }
     const_iterator end() const noexcept { return m_items.end(); }
@@ -270,9 +247,15 @@ public:
     const_iterator cend() const noexcept { return m_items.cend(); }
 
 protected:
+    // A row is one whole T, so writing it refreshes every column of the row:
+    // emit dataChanged across the full row range (columns 0..columnCount-1),
+    // not just the edited cell. Only the row is significant here.
     void setStorageValue(const QModelIndex &index, T value) override
     {
         m_items[static_cast<std::size_t>(index.row())] = std::move(value);
+        const QModelIndex left = this->index(index.row(), 0);
+        const QModelIndex right = this->index(index.row(), this->columnCount() - 1);
+        emit this->dataChanged(left, right);
     }
 
 private:

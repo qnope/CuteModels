@@ -131,16 +131,26 @@ TEST_F(MultiColumnPodModelTest, Column0EditEmitsRowRangeDataChanged)
     EXPECT_EQ(args.at(1).value<QModelIndex>().row(), 0);
 }
 
-TEST_F(MultiColumnPodModelTest, ColumnNSetDataReturnsFalse)
+// A row is one whole T: only the row is significant, so a write addressed
+// through any column rewrites the entire row and emits a row-wide dataChanged.
+// (Columns > 0 are still non-editable via flags(); see
+// FlagsDefaultEditableOnlyOnColumn0.)
+TEST_F(MultiColumnPodModelTest, ColumnNWriteRewritesWholeRow)
 {
     model.push_back(Pod{1, QStringLiteral("one")});
 
     QSignalSpy changedSpy(&model, &QAbstractItemModel::dataChanged);
 
-    EXPECT_FALSE(model.setData(model.index(0, 1),
-                               QVariant::fromValue(Pod{2, QStringLiteral("two")}),
-                               Qt::EditRole));
-    EXPECT_EQ(changedSpy.count(), 0);
+    EXPECT_TRUE(model.setData(model.index(0, 1),
+                              QVariant::fromValue(Pod{2, QStringLiteral("two")}),
+                              Qt::EditRole));
+    EXPECT_TRUE(*model.at(0) == (Pod{2, QStringLiteral("two")}));
+    ASSERT_EQ(changedSpy.count(), 1);
+    const QList<QVariant> args = changedSpy.at(0);
+    EXPECT_EQ(args.at(0).value<QModelIndex>().column(), 0);
+    EXPECT_EQ(args.at(1).value<QModelIndex>().column(), model.columnCount() - 1);
+    EXPECT_EQ(args.at(0).value<QModelIndex>().row(), 0);
+    EXPECT_EQ(args.at(1).value<QModelIndex>().row(), 0);
 }
 
 TEST_F(MultiColumnPodModelTest, GetMutableEmitsRowRangeDataChanged)
