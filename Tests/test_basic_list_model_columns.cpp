@@ -122,7 +122,7 @@ TEST_F(MultiColumnPodModelTest, Column0EditEmitsRowRangeDataChanged)
 
     EXPECT_TRUE(model.setData(model.index(0, 0),
                               QVariant::fromValue(Pod{2, QStringLiteral("two")}),
-                              Qt::EditRole));
+                              ValueRole));
     ASSERT_EQ(changedSpy.count(), 1);
     const QList<QVariant> args = changedSpy.at(0);
     EXPECT_EQ(args.at(0).value<QModelIndex>().column(), 0);
@@ -143,7 +143,7 @@ TEST_F(MultiColumnPodModelTest, ColumnNWriteRewritesWholeRow)
 
     EXPECT_TRUE(model.setData(model.index(0, 1),
                               QVariant::fromValue(Pod{2, QStringLiteral("two")}),
-                              Qt::EditRole));
+                              ValueRole));
     EXPECT_TRUE(*model.at(0) == (Pod{2, QStringLiteral("two")}));
     ASSERT_EQ(changedSpy.count(), 1);
     const QList<QVariant> args = changedSpy.at(0);

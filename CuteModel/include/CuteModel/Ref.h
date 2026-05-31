@@ -3,6 +3,7 @@
 #include "CuteModel/RefBase.h"
 #include "CuteModel/ValueRole.h"
 
+#include <QAbstractItemModel>
 #include <QVariant>
 
 #include <exception>
@@ -28,6 +29,22 @@ public:
             std::terminate();
 
         return value.template value<T>();
+    }
+
+    // Writes `value` back into the model item through its ValueRole. Returns
+    // the model's setData result (false when the write is rejected). An invalid
+    // index — or one whose model has gone away — is a programming error and
+    // terminates, mirroring getValue.
+    bool setValue(const T &value)
+    {
+        if (!m_index.isValid())
+            std::terminate();
+
+        auto *model = const_cast<QAbstractItemModel *>(m_index.model());
+        if (!model)
+            std::terminate();
+
+        return model->setData(m_index, QVariant::fromValue(value), ValueRole);
     }
 };
 

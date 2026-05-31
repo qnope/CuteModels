@@ -88,6 +88,30 @@ TEST(Ref, EmitsValueChangedOnMatchingDataChanged)
     EXPECT_EQ(ref.getValue(), QStringLiteral("b"));
 }
 
+TEST(Ref, SetValueWritesThroughValueRole)
+{
+    auto model = makeModel(QStringLiteral("a"));
+
+    Ref<QString> ref(QPersistentModelIndex(model->index(0, 0)));
+
+    EXPECT_TRUE(ref.setValue(QStringLiteral("b")));
+    EXPECT_EQ(ref.getValue(), QStringLiteral("b"));
+    EXPECT_EQ(model->index(0, 0).data(ValueRole).toString(), QStringLiteral("b"));
+}
+
+TEST(Ref, SetValueEmitsValueChanged)
+{
+    auto model = makeModel(QStringLiteral("a"));
+
+    Ref<QString> ref(QPersistentModelIndex(model->index(0, 0)));
+
+    QSignalSpy valueChangedSpy(&ref, &cute::RefBase::valueChanged);
+
+    EXPECT_TRUE(ref.setValue(QStringLiteral("b")));
+
+    EXPECT_EQ(valueChangedSpy.count(), 1);
+}
+
 TEST(GetAsRefObject, ReturnsNullForInvalidIndex)
 {
     EXPECT_EQ(getAsRefObject<>(QModelIndex()), nullptr);

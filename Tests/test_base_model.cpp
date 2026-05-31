@@ -97,11 +97,11 @@ TEST_F(BaseModelTest, ValueRoleReadsStoredValue)
     EXPECT_EQ(model.index(0, 0).data(ValueRole).toInt(), 0);
 }
 
-TEST_F(BaseModelTest, EditRoleWritesToStorage)
+TEST_F(BaseModelTest, ValueRoleWritesToStorage)
 {
     QSignalSpy changedSpy(&model, &QAbstractItemModel::dataChanged);
 
-    ASSERT_TRUE(model.setData(model.index(0, 0), 42, Qt::EditRole));
+    ASSERT_TRUE(model.setData(model.index(0, 0), 42, ValueRole));
 
     EXPECT_EQ(model.storage(), 42);
     EXPECT_EQ(model.index(0, 0).data(ValueRole).toInt(), 42);
@@ -118,7 +118,7 @@ TEST_F(BaseModelTest, SetDataRejectsInvalidVariant)
 
     // A default-constructed QVariant is invalid and has no convertibility,
     // so setData refuses it.
-    EXPECT_FALSE(model.setData(model.index(0, 0), QVariant(), Qt::EditRole));
+    EXPECT_FALSE(model.setData(model.index(0, 0), QVariant(), ValueRole));
     EXPECT_EQ(model.storage(), 0);
     EXPECT_EQ(changedSpy.count(), 0);
 }
@@ -126,7 +126,7 @@ TEST_F(BaseModelTest, SetDataRejectsInvalidVariant)
 TEST_F(BaseModelTest, SetDataWithUnsupportedRoleTerminates)
 {
     EXPECT_DEATH({ (void)model.setData(model.index(0, 0), 1, Qt::DisplayRole); }, "");
-    EXPECT_DEATH({ (void)model.setData(model.index(0, 0), 1, ValueRole); }, "");
+    EXPECT_DEATH({ (void)model.setData(model.index(0, 0), 1, Qt::EditRole); }, "");
     EXPECT_DEATH({ (void)model.setData(model.index(0, 0), 1, Qt::UserRole + 5); }, "");
 }
 
