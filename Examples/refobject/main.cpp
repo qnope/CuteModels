@@ -49,7 +49,7 @@ int main(int argc, char **argv)
 
     qInfo() << "initial value:" << ref->getValue();
 
-    model.setData(model.index(1, 0), QStringLiteral("BETA"), Qt::EditRole);
+    ref->setValue(QStringLiteral("BETA"));
 
     qInfo() << "final value:" << ref->getValue();
 

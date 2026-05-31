@@ -358,7 +358,7 @@ TEST_F(BasicListModelTest, SetDataEmitsDataChangedAndUpdatesValue)
 
     QSignalSpy changedSpy(&model, &QAbstractItemModel::dataChanged);
 
-    EXPECT_TRUE(model.setData(model.index(0, 0), QStringLiteral("b"), Qt::EditRole));
+    EXPECT_TRUE(model.setData(model.index(0, 0), QStringLiteral("b"), ValueRole));
     EXPECT_EQ(*model.at(0), QStringLiteral("b"));
     ASSERT_EQ(changedSpy.count(), 1);
     const QList<QVariant> args = changedSpy.at(0);
@@ -372,7 +372,7 @@ TEST_F(PodListModelTest, SetDataRejectsIncompatibleValue)
 
     QSignalSpy changedSpy(&model, &QAbstractItemModel::dataChanged);
 
-    EXPECT_FALSE(model.setData(model.index(0, 0), QStringLiteral("nope"), Qt::EditRole));
+    EXPECT_FALSE(model.setData(model.index(0, 0), QStringLiteral("nope"), ValueRole));
     EXPECT_EQ(changedSpy.count(), 0);
 }
 
@@ -513,7 +513,7 @@ TEST_F(BasicListModelTest, SetDataDrivesRefValueChanged)
     ASSERT_NE(ref, nullptr);
     QSignalSpy valueChangedSpy(ref, &cute::RefBase::valueChanged);
 
-    model.setData(model.index(0, 0), QStringLiteral("b"), Qt::EditRole);
+    model.setData(model.index(0, 0), QStringLiteral("b"), ValueRole);
 
     EXPECT_EQ(valueChangedSpy.count(), 1);
     EXPECT_EQ(ref->getValue(), QStringLiteral("b"));
@@ -713,7 +713,7 @@ TEST_F(PodListModelTest, SetDataDrivesRefValueChanged)
 
     EXPECT_TRUE(model.setData(model.index(0, 0),
                               QVariant::fromValue(Pod{42, QStringLiteral("answer")}),
-                              Qt::EditRole));
+                              ValueRole));
 
     EXPECT_EQ(valueChangedSpy.count(), 1);
     EXPECT_TRUE(ref->getValue() == (Pod{42, QStringLiteral("answer")}));
@@ -721,12 +721,12 @@ TEST_F(PodListModelTest, SetDataDrivesRefValueChanged)
 
 // ---------- setData strict-role contract ----------
 
-TEST_F(BasicListModelTest, EditRoleWritesStraightToStorage)
+TEST_F(BasicListModelTest, ValueRoleWritesStraightToStorage)
 {
     model.push_back(QStringLiteral("a"));
 
     QSignalSpy changedSpy(&model, &QAbstractItemModel::dataChanged);
-    ASSERT_TRUE(model.setData(model.index(0, 0), QStringLiteral("b"), Qt::EditRole));
+    ASSERT_TRUE(model.setData(model.index(0, 0), QStringLiteral("b"), ValueRole));
 
     EXPECT_EQ(*model.at(0), QStringLiteral("b"));
     EXPECT_EQ(rawStorageSnapshot(model), QStringList{QStringLiteral("b")});
@@ -739,7 +739,7 @@ TEST_F(BasicListModelTest, DataChangedEmitsEmptyRolesList)
 
     QSignalSpy changedSpy(&model, &QAbstractItemModel::dataChanged);
 
-    model.setData(model.index(0, 0), QStringLiteral("b"), Qt::EditRole);
+    model.setData(model.index(0, 0), QStringLiteral("b"), ValueRole);
 
     ASSERT_EQ(changedSpy.count(), 1);
     const QList<QVariant> args = changedSpy.at(0);
@@ -755,7 +755,7 @@ TEST_F(BasicListModelTest, SetDataWithUnsupportedRoleTerminates)
         { (void)model.setData(model.index(0, 0), QStringLiteral("x"), Qt::DisplayRole); },
         "");
     EXPECT_DEATH(
-        { (void)model.setData(model.index(0, 0), QStringLiteral("x"), ValueRole); }, "");
+        { (void)model.setData(model.index(0, 0), QStringLiteral("x"), Qt::EditRole); }, "");
     EXPECT_DEATH(
         { (void)model.setData(model.index(0, 0), QStringLiteral("x"), Qt::UserRole + 5); },
         "");
@@ -776,7 +776,7 @@ TEST_F(DroppingListModelTest, MimeDataForSingleIndexReadsValue)
 TEST_F(DroppingListModelTest, MimeDataReadsCurrentStorageValue)
 {
     model.push_back(QStringLiteral("a"));
-    model.setData(model.index(0, 0), QStringLiteral("updated"), Qt::EditRole);
+    model.setData(model.index(0, 0), QStringLiteral("updated"), ValueRole);
 
     QMimeData *mime = model.mimeData({model.index(0, 0)});
     ASSERT_NE(mime, nullptr);

@@ -22,8 +22,8 @@ namespace cute {
 // QAbstractItemModel (dataChanged, modelReset, …).
 //
 // Responsibilities:
-//   * Strict-contract setData. The only accepted write role is Qt::EditRole —
-//     anything else (Qt::DisplayRole, ValueRole, custom roles) is a programming
+//   * Strict-contract setData. The only accepted write role is ValueRole —
+//     anything else (Qt::EditRole, Qt::DisplayRole, custom roles) is a programming
 //     error and terminates. The write — and the dataChanged notification that
 //     goes with it — is delegated to the protected setStorageValue(index,
 //     value) virtual, which structural subclasses implement against their own
@@ -85,14 +85,14 @@ public:
 
     // ---------- QAbstractItemModel overrides ----------
 
-    // Strict role contract: only Qt::EditRole is accepted. Anything else
-    // (including Qt::DisplayRole, ValueRole, custom roles) is a programming
+    // Strict role contract: only ValueRole is accepted. Anything else
+    // (including Qt::EditRole, Qt::DisplayRole, custom roles) is a programming
     // error and terminates. The write — and the dataChanged emission — is
     // delegated to setStorageValue.
     bool setData(const QModelIndex &index, const QVariant &value,
-                 int role = Qt::EditRole) override
+                 int role = ValueRole) override
     {
-        if (role != Qt::EditRole)
+        if (role != ValueRole)
             std::terminate();
         if (!checkIndex(index, CheckIndexOption::IndexIsValid))
             return false;
