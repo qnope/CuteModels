@@ -1,5 +1,4 @@
 #include "CuteModel/BasicListModel.h"
-#include "CuteModel/GetAsRefObject.h"
 #include "CuteModel/Ref.h"
 #include "CuteModel/RefBase.h"
 #include "CuteModel/ValueRole.h"
@@ -22,7 +21,6 @@
 #include <optional>
 
 using cute::BasicListModel;
-using cute::getAsRefObject;
 using cute::Ref;
 using cute::ValueRole;
 
@@ -395,13 +393,14 @@ TEST_F(BasicListModelTest, GetMutableDrivesRefValueChanged)
 {
     model.push_back(QStringLiteral("a"));
 
-    Ref<QString> ref(QPersistentModelIndex(model.index(0, 0)));
-    QSignalSpy valueChangedSpy(&ref, &cute::RefBase::valueChanged);
+    auto ref = model.getRef<>(model.index(0, 0));
+    ASSERT_NE(ref, nullptr);
+    QSignalSpy valueChangedSpy(ref.get(), &cute::RefBase::valueChanged);
 
     model.getMutable(0) = QStringLiteral("new");
 
     EXPECT_EQ(valueChangedSpy.count(), 1);
-    EXPECT_EQ(ref.getValue(), QStringLiteral("new"));
+    EXPECT_EQ(ref->getValue(), QStringLiteral("new"));
 }
 
 TEST_F(BasicListModelTest, GetMutableDefersDataChangedUntilDestruction)
@@ -509,9 +508,9 @@ TEST_F(BasicListModelTest, SetDataDrivesRefValueChanged)
 {
     model.push_back(QStringLiteral("a"));
 
-    Ref<QString> *ref = getAsRefObject<Ref<QString>>(model.index(0, 0));
+    auto ref = model.getRef<Ref<QString>>(model.index(0, 0));
     ASSERT_NE(ref, nullptr);
-    QSignalSpy valueChangedSpy(ref, &cute::RefBase::valueChanged);
+    QSignalSpy valueChangedSpy(ref.get(), &cute::RefBase::valueChanged);
 
     model.setData(model.index(0, 0), QStringLiteral("b"), ValueRole);
 
@@ -685,31 +684,33 @@ TEST_F(PodListModelTest, RefGetValueReadsPodFromValueRole)
 {
     model.push_back(Pod{7, QStringLiteral("seven")});
 
-    Ref<Pod> ref(QPersistentModelIndex(model.index(0, 0)));
+    auto ref = model.getRef<Ref<Pod>>(model.index(0, 0));
+    ASSERT_NE(ref, nullptr);
 
-    EXPECT_TRUE(ref.getValue() == (Pod{7, QStringLiteral("seven")}));
+    EXPECT_TRUE(ref->getValue() == (Pod{7, QStringLiteral("seven")}));
 }
 
 TEST_F(PodListModelTest, GetMutableDrivesRefValueChanged)
 {
     model.push_back(Pod{1, QStringLiteral("one")});
 
-    Ref<Pod> ref(QPersistentModelIndex(model.index(0, 0)));
-    QSignalSpy valueChangedSpy(&ref, &cute::RefBase::valueChanged);
+    auto ref = model.getRef<Ref<Pod>>(model.index(0, 0));
+    ASSERT_NE(ref, nullptr);
+    QSignalSpy valueChangedSpy(ref.get(), &cute::RefBase::valueChanged);
 
     model.getMutable(0) = Pod{2, QStringLiteral("two")};
 
     EXPECT_EQ(valueChangedSpy.count(), 1);
-    EXPECT_TRUE(ref.getValue() == (Pod{2, QStringLiteral("two")}));
+    EXPECT_TRUE(ref->getValue() == (Pod{2, QStringLiteral("two")}));
 }
 
 TEST_F(PodListModelTest, SetDataDrivesRefValueChanged)
 {
     model.push_back(Pod{1, QStringLiteral("one")});
 
-    Ref<Pod> *ref = getAsRefObject<Ref<Pod>>(model.index(0, 0));
+    auto ref = model.getRef<Ref<Pod>>(model.index(0, 0));
     ASSERT_NE(ref, nullptr);
-    QSignalSpy valueChangedSpy(ref, &cute::RefBase::valueChanged);
+    QSignalSpy valueChangedSpy(ref.get(), &cute::RefBase::valueChanged);
 
     EXPECT_TRUE(model.setData(model.index(0, 0),
                               QVariant::fromValue(Pod{42, QStringLiteral("answer")}),

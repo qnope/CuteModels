@@ -14,7 +14,6 @@ target_sources(CuteModel
             include/CuteModel/RefBase.h
             include/CuteModel/Ref.h
             include/CuteModel/VariantWrapper.h
-            include/CuteModel/GetAsRefObject.h
             include/CuteModel/ItemProxy.h
             include/CuteModel/BaseModel.h
             include/CuteModel/BasicListModel.h)

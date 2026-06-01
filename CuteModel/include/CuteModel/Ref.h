@@ -7,18 +7,24 @@
 #include <QVariant>
 
 #include <exception>
+#include <utility>
 
 namespace cute {
+
+template <typename T>
+class BaseModel;
 
 // Typed view over a single model item. Reads the item's ValueRole as a T.
 // No Q_OBJECT here: the signals are inherited from RefBase (moc cannot process
 // class templates).
+//
+// Refs are not constructed directly: BaseModel<T> is the sole factory
+// (BaseModel::getRef), so the constructor is private and BaseModel is a
+// friend.
 template <typename T>
 class Ref : public RefBase
 {
 public:
-    using RefBase::RefBase;
-
     T getValue() const
     {
         if (!m_index.isValid())
@@ -46,6 +52,12 @@ public:
 
         return model->setData(m_index, QVariant::fromValue(value), ValueRole);
     }
+
+private:
+    explicit Ref(QPersistentModelIndex index) : RefBase(std::move(index)) {}
+
+    template <typename U>
+    friend class BaseModel;
 };
 
 } // namespace cute
