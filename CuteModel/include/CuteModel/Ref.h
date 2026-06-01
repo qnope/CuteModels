@@ -56,8 +56,7 @@ public:
 protected:
     explicit Ref(QPersistentModelIndex index) : RefBase(std::move(index)) {}
 
-    template <typename U>
-    friend class BaseModel;
+    friend class BaseModel<T>;
 };
 
 } // namespace cute
