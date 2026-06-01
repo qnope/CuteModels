@@ -45,6 +45,10 @@ public:
         , m_headers(headers.isEmpty() ? QStringList{QString()} : std::move(headers))
     {}
 
+    // BaseModel owns data(const QModelIndex&, int); pull it into scope so the
+    // role-projection overload below does not hide it from callers.
+    using BaseModel<T>::data;
+
     // ---------- Role projection (per-column — list-specific) ----------
     //
     // Subclasses describe how a stored value maps to roles other than
@@ -137,26 +141,26 @@ public:
     }
 
     // ---------- Read path ----------
-
-    QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override
-    {
-        QModelRoleData roleData(role);
-        multiData(index, roleData);
-        return roleData.data();
-    }
+    //
+    // data(QModelIndex) and the ValueRole branch of multiData live in BaseModel.
+    // Here multiData defers to BaseModel for ValueRole, then projects the
+    // remaining (column, role) pairs — so the ValueRole / trait case never has
+    // to be restated at this level.
 
     void multiData(const QModelIndex &index, QModelRoleDataSpan roleDataSpan) const override
     {
+        BaseModel<T>::multiData(index, roleDataSpan);
+
         if (!this->checkIndex(index, QAbstractItemModel::CheckIndexOption::IndexIsValid))
             return;
 
         const T &value = m_items[static_cast<std::size_t>(index.row())];
         const int column = index.column();
         for (QModelRoleData &roleData : roleDataSpan) {
-            if (roleData.role() == ValueRole) {
-                roleData.setData(QVariant::fromValue(value));
-            } else if (QVariant projected = data(value, column, roleData.role());
-                       projected.isValid()) {
+            if (roleData.role() == ValueRole)
+                continue; // handled by BaseModel::multiData
+            if (QVariant projected = data(value, column, roleData.role());
+                projected.isValid()) {
                 roleData.data() = std::move(projected);
             } else {
                 roleData.clearData();

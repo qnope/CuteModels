@@ -14,7 +14,7 @@ CuteModel is a C++ library for Qt providing templated model types.
 1. Build the model around lazy loading using `canFetchMore` and `fetchMore`.
 2. Construct `QPointer<Ref<T>>` with `Ref<T>` inheriting from `QObject` and follow an object using a `QPersistentModelIndex`. The free function is something close to: `getAsRefObject<Default = Ref<T>>(QModelIndex)`
 3. Most function follow the standard containers API. `push_back`...
-4. Propose a `VariantWrapper<T>` for object not eligible to `Q_DECLARE_METATYPE`. Using `reinterpret_cast`, `std::array<std::byte, N>` and `std::launder`.
+4. ValueRole support is opt-in via the `is_compatible_with_value_role<T>` trait: `BaseModel` guards every ValueRole touchpoint (`data`/`multiData`, `setData`, `roleNames`) with `if constexpr`, so a T not eligible to travel through `QVariant` simply does not expose ValueRole rather than being wrapped.
 5. Don't care much about roles, except for QML.
 6. Use `multiData` instead of `data`.
 7. Edition will be done through a cache with `submit` / `revert`.
