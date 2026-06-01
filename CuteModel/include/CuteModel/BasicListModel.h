@@ -4,6 +4,7 @@
 #include "CuteModel/ItemProxy.h"
 #include "CuteModel/ValueRole.h"
 
+#include <QMimeData>
 #include <QModelIndex>
 #include <QModelRoleData>
 #include <QPersistentModelIndex>
@@ -58,6 +59,46 @@ public:
         if (column == 0)
             base |= Qt::ItemIsEditable;
         return base;
+    }
+
+    // ---------- Drop hooks (list-specific) ----------
+    //
+    // A drop on a flat list resolves to exactly one of two shapes, and the
+    // structural dispatch (canDropMimeData / dropMimeData below) feeds the
+    // matching hook so subclasses never inspect a raw QModelIndex:
+    //
+    //   * onElement   — the drop lands ON an existing row. The hook receives
+    //                   that row's value by const reference plus the targeted
+    //                   column. (Qt's "row == -1, parent valid" convention.)
+    //   * insertion   — the drop lands BETWEEN rows (or past the end). The hook
+    //                   receives the insertion row. A drop on the empty
+    //                   viewport (Qt's "row == -1, parent invalid") is routed
+    //                   here as an append, i.e. row == size().
+    //
+    // Default behavior: refuse everything.
+
+    virtual bool canDropOnElement(const T &element, int column,
+                                  Qt::DropAction action, const QMimeData *data) const
+    {
+        return false;
+    }
+
+    virtual bool dropOnElement(const T &element, int column,
+                               Qt::DropAction action, const QMimeData *data)
+    {
+        return false;
+    }
+
+    virtual bool canDropInsertion(int row, int column,
+                                  Qt::DropAction action, const QMimeData *data) const
+    {
+        return false;
+    }
+
+    virtual bool dropInsertion(int row, int column,
+                               Qt::DropAction action, const QMimeData *data)
+    {
+        return false;
     }
 
     // ---------- Structural overrides ----------
@@ -128,6 +169,32 @@ public:
         if (!index.isValid())
             return Qt::NoItemFlags;
         return flags(m_items[static_cast<std::size_t>(index.row())], index.column());
+    }
+
+    // ---------- Drop dispatch ----------
+    //
+    // Translate Qt's (row, column, parent) drop coordinates into the
+    // list-shaped onElement / insertion hooks above:
+    //   * parent valid            -> onElement (the targeted row's value)
+    //   * parent invalid, row >= 0 -> insertion at that row
+    //   * parent invalid, row < 0  -> insertion appended at size()
+
+    bool canDropMimeData(const QMimeData *data, Qt::DropAction action,
+                         int row, int column, const QModelIndex &parent) const override
+    {
+        if (parent.isValid())
+            return canDropOnElement(m_items[static_cast<std::size_t>(parent.row())],
+                                    parent.column(), action, data);
+        return canDropInsertion(row < 0 ? size() : row, column, action, data);
+    }
+
+    bool dropMimeData(const QMimeData *data, Qt::DropAction action,
+                      int row, int column, const QModelIndex &parent) override
+    {
+        if (parent.isValid())
+            return dropOnElement(m_items[static_cast<std::size_t>(parent.row())],
+                                 parent.column(), action, data);
+        return dropInsertion(row < 0 ? size() : row, column, action, data);
     }
 
     // ---------- Container API ----------

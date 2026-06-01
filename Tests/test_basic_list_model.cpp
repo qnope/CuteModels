@@ -68,8 +68,9 @@ public:
 };
 
 // Drop/drag-enabled subclass used by the drag/drop tests. Captures the
-// arguments dropValue/canDropValue received so tests can inspect them; the
-// mime payload it accepts is just a single text/plain QString.
+// arguments the list-shaped drop hooks received so tests can inspect which
+// shape (onElement vs insertion) the dispatch resolved to; the mime payload it
+// accepts is just a single text/plain QString.
 class DroppingListModel : public BasicListModel<QString>
 {
 public:
@@ -92,49 +93,71 @@ public:
         return out;
     }
 
-    bool canDropValue(std::optional<QString> parent,
-                      std::optional<int> row,
-                      int column,
-                      Qt::DropAction action,
-                      const QMimeData *data) const override
+    bool canDropOnElement(const QString &element, int column,
+                          Qt::DropAction action, const QMimeData *data) const override
     {
-        lastCanDropParent = parent;
-        lastCanDropRow = row;
-        lastCanDropColumn = column;
-        lastCanDropAction = action;
-        lastCanDropText = data ? std::optional<QString>(data->text()) : std::nullopt;
+        lastCanOnElement = element;
+        lastCanOnColumn = column;
+        lastCanOnAction = action;
+        lastCanOnText = data ? std::optional<QString>(data->text()) : std::nullopt;
         return data && data->hasText();
     }
 
-    bool dropValue(std::optional<QString> parent,
-                   std::optional<int> row,
-                   int column,
-                   Qt::DropAction action,
-                   const QMimeData *data) override
+    bool dropOnElement(const QString &element, int column,
+                       Qt::DropAction action, const QMimeData *data) override
     {
-        lastDropParent = parent;
-        lastDropRow = row;
-        lastDropColumn = column;
-        lastDropAction = action;
-        lastDropText = data ? std::optional<QString>(data->text()) : std::nullopt;
+        lastOnElement = element;
+        lastOnColumn = column;
+        lastOnAction = action;
+        lastOnText = data ? std::optional<QString>(data->text()) : std::nullopt;
+        return data && data->hasText();
+    }
+
+    bool canDropInsertion(int row, int column,
+                          Qt::DropAction action, const QMimeData *data) const override
+    {
+        lastCanInsertRow = row;
+        lastCanInsertColumn = column;
+        lastCanInsertAction = action;
+        lastCanInsertText = data ? std::optional<QString>(data->text()) : std::nullopt;
+        return data && data->hasText();
+    }
+
+    bool dropInsertion(int row, int column,
+                       Qt::DropAction action, const QMimeData *data) override
+    {
+        lastInsertRow = row;
+        lastInsertColumn = column;
+        lastInsertAction = action;
+        lastInsertText = data ? std::optional<QString>(data->text()) : std::nullopt;
         if (data && data->hasText()) {
-            this->push_back(data->text());
+            this->insert(row, data->text());
             return true;
         }
         return false;
     }
 
-    mutable std::optional<QString> lastCanDropParent;
-    mutable std::optional<int> lastCanDropRow;
-    mutable int lastCanDropColumn = -42;
-    mutable Qt::DropAction lastCanDropAction = Qt::IgnoreAction;
-    mutable std::optional<QString> lastCanDropText;
+    // onElement captures (can / drop).
+    mutable std::optional<QString> lastCanOnElement;
+    mutable int lastCanOnColumn = -42;
+    mutable Qt::DropAction lastCanOnAction = Qt::IgnoreAction;
+    mutable std::optional<QString> lastCanOnText;
 
-    std::optional<QString> lastDropParent;
-    std::optional<int> lastDropRow;
-    int lastDropColumn = -42;
-    Qt::DropAction lastDropAction = Qt::IgnoreAction;
-    std::optional<QString> lastDropText;
+    std::optional<QString> lastOnElement;
+    int lastOnColumn = -42;
+    Qt::DropAction lastOnAction = Qt::IgnoreAction;
+    std::optional<QString> lastOnText;
+
+    // insertion captures (can / drop).
+    mutable int lastCanInsertRow = -42;
+    mutable int lastCanInsertColumn = -42;
+    mutable Qt::DropAction lastCanInsertAction = Qt::IgnoreAction;
+    mutable std::optional<QString> lastCanInsertText;
+
+    int lastInsertRow = -42;
+    int lastInsertColumn = -42;
+    Qt::DropAction lastInsertAction = Qt::IgnoreAction;
+    std::optional<QString> lastInsertText;
 };
 
 class BasicListModelTest : public ::testing::Test
@@ -791,49 +814,78 @@ TEST_F(DroppingListModelTest, MimeDataForMultipleIndexesReturnsNull)
     EXPECT_EQ(model.mimeData({model.index(0, 0), model.index(1, 0)}), nullptr);
 }
 
-TEST_F(DroppingListModelTest, DropAtRootBetweenRowsPassesNulloptParent)
+TEST_F(DroppingListModelTest, DropBetweenRowsRoutesToInsertion)
 {
     QMimeData payload;
     payload.setText(QStringLiteral("incoming"));
 
     EXPECT_TRUE(model.canDropMimeData(&payload, Qt::CopyAction, 0, 0, QModelIndex()));
-    EXPECT_FALSE(model.lastCanDropParent.has_value());
-    ASSERT_TRUE(model.lastCanDropRow.has_value());
-    EXPECT_EQ(*model.lastCanDropRow, 0);
-    EXPECT_EQ(model.lastCanDropColumn, 0);
-    EXPECT_EQ(model.lastCanDropAction, Qt::CopyAction);
-    ASSERT_TRUE(model.lastCanDropText.has_value());
-    EXPECT_EQ(*model.lastCanDropText, QStringLiteral("incoming"));
+    EXPECT_EQ(model.lastCanInsertRow, 0);
+    EXPECT_EQ(model.lastCanInsertColumn, 0);
+    EXPECT_EQ(model.lastCanInsertAction, Qt::CopyAction);
+    ASSERT_TRUE(model.lastCanInsertText.has_value());
+    EXPECT_EQ(*model.lastCanInsertText, QStringLiteral("incoming"));
 
     EXPECT_TRUE(model.dropMimeData(&payload, Qt::CopyAction, 0, 0, QModelIndex()));
-    EXPECT_FALSE(model.lastDropParent.has_value());
+    EXPECT_EQ(model.lastInsertRow, 0);
     EXPECT_EQ(model.size(), 1);
     EXPECT_EQ(*model.at(0), QStringLiteral("incoming"));
 }
 
-TEST_F(DroppingListModelTest, DropOnExistingItemPassesNulloptRow)
+TEST_F(DroppingListModelTest, DropOnViewportRoutesToInsertionAtEnd)
+{
+    model.push_back(QStringLiteral("a"));
+    model.push_back(QStringLiteral("b"));
+
+    QMimeData payload;
+    payload.setText(QStringLiteral("tail"));
+
+    // Qt's "row == -1, parent invalid" (drop on empty viewport) appends.
+    EXPECT_TRUE(model.canDropMimeData(&payload, Qt::CopyAction, -1, 0, QModelIndex()));
+    EXPECT_EQ(model.lastCanInsertRow, 2);
+
+    EXPECT_TRUE(model.dropMimeData(&payload, Qt::CopyAction, -1, 0, QModelIndex()));
+    EXPECT_EQ(model.lastInsertRow, 2);
+    ASSERT_EQ(model.size(), 3);
+    EXPECT_EQ(*model.at(2), QStringLiteral("tail"));
+}
+
+TEST_F(DroppingListModelTest, DropOnExistingItemRoutesToOnElement)
 {
     model.push_back(QStringLiteral("parent"));
 
     QMimeData payload;
     payload.setText(QStringLiteral("payload"));
 
-    EXPECT_TRUE(model.dropMimeData(&payload, Qt::MoveAction, -1, 0, model.index(0, 0)));
+    EXPECT_TRUE(model.canDropMimeData(&payload, Qt::MoveAction, -1, 0, model.index(0, 0)));
+    ASSERT_TRUE(model.lastCanOnElement.has_value());
+    EXPECT_EQ(*model.lastCanOnElement, QStringLiteral("parent"));
+    EXPECT_EQ(model.lastCanOnColumn, 0);
+    EXPECT_EQ(model.lastCanOnAction, Qt::MoveAction);
 
-    ASSERT_TRUE(model.lastDropParent.has_value());
-    EXPECT_EQ(*model.lastDropParent, QStringLiteral("parent"));
-    EXPECT_FALSE(model.lastDropRow.has_value());
-    EXPECT_EQ(model.lastDropAction, Qt::MoveAction);
+    EXPECT_TRUE(model.dropMimeData(&payload, Qt::MoveAction, -1, 0, model.index(0, 0)));
+    ASSERT_TRUE(model.lastOnElement.has_value());
+    EXPECT_EQ(*model.lastOnElement, QStringLiteral("parent"));
+    EXPECT_EQ(model.lastOnColumn, 0);
+    EXPECT_EQ(model.lastOnAction, Qt::MoveAction);
+    ASSERT_TRUE(model.lastOnText.has_value());
+    EXPECT_EQ(*model.lastOnText, QStringLiteral("payload"));
+    // onElement does not mutate storage in this fixture.
+    EXPECT_EQ(model.size(), 1);
 }
 
-TEST_F(DroppingListModelTest, BaseModelDefaultDropRejectsAll)
+TEST_F(DroppingListModelTest, DefaultDropRejectsBothShapes)
 {
     StringListModel plain;
     plain.push_back(QStringLiteral("a"));
     QMimeData payload;
     payload.setText(QStringLiteral("ignored"));
 
+    // Insertion shape (parent invalid) and onElement shape (parent valid) both
+    // refused by the BasicListModel defaults.
     EXPECT_FALSE(plain.canDropMimeData(&payload, Qt::CopyAction, 0, 0, QModelIndex()));
     EXPECT_FALSE(plain.dropMimeData(&payload, Qt::CopyAction, 0, 0, QModelIndex()));
+    EXPECT_FALSE(plain.canDropMimeData(&payload, Qt::CopyAction, -1, 0, plain.index(0, 0)));
+    EXPECT_FALSE(plain.dropMimeData(&payload, Qt::CopyAction, -1, 0, plain.index(0, 0)));
     EXPECT_EQ(plain.size(), 1);
 }
