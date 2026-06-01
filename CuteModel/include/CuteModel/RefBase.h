@@ -13,11 +13,6 @@ class RefBase : public QObject
 {
     Q_OBJECT
 public:
-    // The Ref is always owned by the index's model: the model is the only
-    // sensible lifetime anchor (its destruction invalidates m_index), and
-    // getAsRefObject relies on this to clean up heap-allocated refs.
-    explicit RefBase(QPersistentModelIndex index);
-
     const QPersistentModelIndex &index() const { return m_index; }
 
 signals:
@@ -25,6 +20,11 @@ signals:
     void underlyingHierarchyChanged();
 
 protected:
+    // Parent-less QObject: the Ref's lifetime is owned by whoever holds it
+    // (BaseModel::getRef hands back a std::unique_ptr), not by the model.
+    // Protected so only the Ref<T> subclass can construct the base.
+    explicit RefBase(QPersistentModelIndex index);
+
     QPersistentModelIndex m_index;
 };
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "CuteModel/Ref.h"
 #include "CuteModel/ValueRole.h"
 
 #include <QAbstractItemModel>
@@ -8,9 +9,11 @@
 #include <QMimeData>
 #include <QModelIndex>
 #include <QModelIndexList>
+#include <QPersistentModelIndex>
 #include <QVariant>
 
 #include <exception>
+#include <memory>
 #include <optional>
 #include <type_traits>
 
@@ -53,6 +56,28 @@ class BaseModel : public QAbstractItemModel
 
 public:
     using QAbstractItemModel::QAbstractItemModel;
+
+    // ---------- Ref factory ----------
+
+    // Build a RefBase-derived object that follows `index`. Ownership is handed
+    // to the caller through the returned std::unique_ptr — the Ref is no longer
+    // parented to the model. Defaults to Ref<T>; pass a concrete RefBase
+    // subclass to get a typed view. Returns nullptr for an invalid index.
+    //
+    // BaseModel<T> is the sole factory for Ref<T> (its constructor is private
+    // and befriends BaseModel), which is why this lives here rather than in a
+    // free function.
+    template <typename R = Ref<T>>
+    std::unique_ptr<R> getRef(const QModelIndex &index)
+    {
+        static_assert(std::is_base_of_v<RefBase, R>,
+                      "getRef<R> requires R to derive from RefBase");
+
+        if (!index.isValid())
+            return nullptr;
+
+        return std::unique_ptr<R>(new R(QPersistentModelIndex(index)));
+    }
 
     // ---------- Drag/drop, value-based ----------
 
