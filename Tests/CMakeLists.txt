@@ -8,6 +8,7 @@ add_executable(cutemodel_tests)
 set_target_properties(cutemodel_tests PROPERTIES AUTOMOC ON)
 
 target_sources(cutemodel_tests PRIVATE
+    test_value_role.cpp
     test_variant_wrapper.cpp
     test_ref.cpp
     test_base_model.cpp
