@@ -85,16 +85,16 @@ public:
         }
 
         // Writes `value` back into the model item through setStorageValue,
-        // which performs the write and emits dataChanged. An invalid index — or
-        // one whose model has gone away — is a programming error and
-        // terminates, mirroring getValue.
-        bool setValue(const T &value)
+        // which performs the write and emits dataChanged. The write cannot
+        // fail, so there is nothing to report. An invalid index — or one whose
+        // model has gone away — is a programming error and terminates,
+        // mirroring getValue.
+        void setValue(const T &value)
         {
             if (!m_index.isValid() || !m_model)
                 std::terminate();
 
             m_model->setStorageValue(m_index, value);
-            return true;
         }
 
     protected:
