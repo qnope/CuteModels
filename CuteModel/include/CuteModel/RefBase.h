@@ -5,10 +5,11 @@
 
 namespace cute {
 
-// Base, non-templated part of Ref<T>. It follows a single model item through a
-// QPersistentModelIndex and re-emits change notifications about that item (or its
-// descendants). Being a plain QObject, it can carry the Q_OBJECT signals that the
-// templated Ref<T> subclass inherits (moc cannot process templates directly).
+// Base, non-templated part of the nested BaseModel<T>::Ref. It follows a single
+// model item through a QPersistentModelIndex and re-emits change notifications
+// about that item (or its descendants). Being a plain QObject, it can carry the
+// Q_OBJECT signals that the templated Ref subclass inherits (moc cannot process
+// templates directly).
 class RefBase : public QObject
 {
     Q_OBJECT
@@ -22,7 +23,7 @@ signals:
 protected:
     // Parent-less QObject: the Ref's lifetime is owned by whoever holds it
     // (BaseModel::getRef hands back a std::unique_ptr), not by the model.
-    // Protected so only the Ref<T> subclass can construct the base.
+    // Protected so only the nested Ref subclass can construct the base.
     explicit RefBase(QPersistentModelIndex index);
 
     QPersistentModelIndex m_index;

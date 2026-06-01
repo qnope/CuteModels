@@ -1,5 +1,5 @@
 #include "CuteModel/BasicListModel.h"
-#include "CuteModel/Ref.h"
+#include "CuteModel/RefBase.h"
 #include "CuteModel/ValueRole.h"
 
 #include <gtest/gtest.h>
@@ -11,7 +11,6 @@
 #include <memory>
 
 using cute::BasicListModel;
-using cute::Ref;
 using cute::ValueRole;
 
 namespace {
@@ -104,7 +103,8 @@ TEST(GetRef, ConstructsTypedRef)
 {
     auto model = makeModel(QStringLiteral("world"));
 
-    std::unique_ptr<Ref<QString>> ref = model->getRef<Ref<QString>>(model->index(0, 0));
+    std::unique_ptr<ValueListModel::Ref> ref =
+        model->getRef<ValueListModel::Ref>(model->index(0, 0));
 
     ASSERT_NE(ref, nullptr);
     EXPECT_EQ(ref->getValue(), QStringLiteral("world"));

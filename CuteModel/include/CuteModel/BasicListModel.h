@@ -247,6 +247,14 @@ public:
     const_iterator cend() const noexcept { return m_items.cend(); }
 
 protected:
+    // A row is one whole T, so the stored value is addressed by row alone (the
+    // column is irrelevant) and returned by const reference straight out of
+    // m_items.
+    const T &getStorageValue(const QModelIndex &index) const override
+    {
+        return m_items[static_cast<std::size_t>(index.row())];
+    }
+
     // A row is one whole T, so writing it refreshes every column of the row:
     // emit dataChanged across the full row range (columns 0..columnCount-1),
     // not just the edited cell. Only the row is significant here.

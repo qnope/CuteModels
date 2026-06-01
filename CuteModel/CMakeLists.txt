@@ -12,7 +12,6 @@ target_sources(CuteModel
         FILES
             include/CuteModel/ValueRole.h
             include/CuteModel/RefBase.h
-            include/CuteModel/Ref.h
             include/CuteModel/VariantWrapper.h
             include/CuteModel/ItemProxy.h
             include/CuteModel/BaseModel.h
