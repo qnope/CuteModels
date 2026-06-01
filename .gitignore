@@ -1,4 +1,5 @@
 /build/
+/CMakeFiles/
 /vcpkg_installed/
 .cache/
 .vscode/
