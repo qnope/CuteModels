@@ -1,6 +1,6 @@
 #pragma once
 
-#include "CuteModel/Ref.h"
+#include "CuteModel/RefBase.h"
 #include "CuteModel/ValueRole.h"
 
 #include <QAbstractItemModel>
@@ -16,13 +16,14 @@
 #include <memory>
 #include <optional>
 #include <type_traits>
+#include <utility>
 
 namespace cute {
 
-// Abstract, header-only base for typed CuteModel models. Like Ref<T> over
-// RefBase, BaseModel<T> does NOT carry its own Q_OBJECT (moc cannot process
-// class templates) — it relies entirely on the signals already declared on
-// QAbstractItemModel (dataChanged, modelReset, …).
+// Abstract, header-only base for typed CuteModel models. Like the nested
+// BaseModel<T>::Ref over RefBase, BaseModel<T> does NOT carry its own Q_OBJECT
+// (moc cannot process class templates) — it relies entirely on the signals
+// already declared on QAbstractItemModel (dataChanged, modelReset, …).
 //
 // Responsibilities:
 //   * Strict-contract setData. The only accepted write role is ValueRole —
@@ -39,13 +40,13 @@ namespace cute {
 //
 //   * roleNames advertising ValueRole, so QML can bind "value".
 //
-// BaseModel reads cell values through the public role path —
-// index.data(ValueRole).value<T>() — so it never needs a typed read hook into
-// a subclass's row/column/tree layout. Structural subclasses (BasicListModel,
-// BasicTableModel, BasicTreeModel, …) own their storage and the multiData /
-// data / flags overrides that project it to roles; they are also the ones that
-// expose T-reference accessors (ItemProxy), because those cannot round-trip
-// through QVariant.
+// Subclasses expose their storage to the read/edit machinery through two typed
+// hooks — getStorageValue (a const T& straight into storage) and
+// setStorageValue (write + dataChanged). BaseModel and its nested Ref are built
+// on top of those, so they never need to round-trip a value through QVariant.
+// Structural subclasses (BasicListModel, BasicTableModel, BasicTreeModel, …)
+// own their storage and the multiData / data / flags overrides that project it
+// to roles.
 template <typename T>
 class BaseModel : public QAbstractItemModel
 {
@@ -57,26 +58,76 @@ class BaseModel : public QAbstractItemModel
 public:
     using QAbstractItemModel::QAbstractItemModel;
 
+    // ---------- Ref ----------
+
+    // Typed view over a single model item, nested inside the model it belongs
+    // to. It keeps the owning BaseModel<T>* and a QPersistentModelIndex, and
+    // reads/writes the item straight through the model's typed storage hooks
+    // (getStorageValue / setStorageValue) — no QVariant round-trip.
+    //
+    // No Q_OBJECT here: the change signals are inherited from RefBase (moc
+    // cannot process class templates). Refs are not constructed directly:
+    // BaseModel<T> is the sole factory (BaseModel::getRef), so the constructor
+    // is protected and BaseModel is a friend.
+    class Ref : public RefBase
+    {
+    public:
+        // Read access to the item's stored value. Returns a const reference
+        // straight into the model's storage via getStorageValue. An invalid
+        // index — or one whose model has gone away — is a programming error and
+        // terminates.
+        const T &getValue() const
+        {
+            if (!m_index.isValid() || !m_model)
+                std::terminate();
+
+            return m_model->getStorageValue(m_index);
+        }
+
+        // Writes `value` back into the model item through setStorageValue,
+        // which performs the write and emits dataChanged. An invalid index — or
+        // one whose model has gone away — is a programming error and
+        // terminates, mirroring getValue.
+        bool setValue(const T &value)
+        {
+            if (!m_index.isValid() || !m_model)
+                std::terminate();
+
+            m_model->setStorageValue(m_index, value);
+            return true;
+        }
+
+    protected:
+        Ref(BaseModel *model, QPersistentModelIndex index)
+            : RefBase(std::move(index))
+            , m_model(model)
+        {}
+
+        BaseModel *m_model;
+
+        friend class BaseModel;
+    };
+
     // ---------- Ref factory ----------
 
-    // Build a RefBase-derived object that follows `index`. Ownership is handed
-    // to the caller through the returned std::unique_ptr — the Ref is no longer
-    // parented to the model. Defaults to Ref<T>; pass a concrete RefBase
-    // subclass to get a typed view. Returns nullptr for an invalid index.
+    // Build a Ref that follows `index`. Ownership is handed to the caller
+    // through the returned std::unique_ptr — the Ref is not parented to the
+    // model. Defaults to the nested Ref; pass a concrete Ref subclass to get a
+    // typed view. Returns nullptr for an invalid index.
     //
-    // BaseModel<T> is the sole factory for Ref<T> (its constructor is private
+    // BaseModel<T> is the sole factory for Ref (its constructor is protected
     // and befriends BaseModel), which is why this lives here rather than in a
     // free function.
-    template <typename R = Ref<T>>
+    template <typename R = Ref>
     std::unique_ptr<R> getRef(const QModelIndex &index)
     {
-        static_assert(std::is_base_of_v<Ref<T>, R>,
-                      "getRef<R> requires R to derive from Ref<T>");
+        static_assert(std::is_base_of_v<Ref, R>,
+                      "getRef<R> requires R to derive from BaseModel<T>::Ref");
 
         if (!index.isValid())
             return nullptr;
 
-        return std::unique_ptr<R>(new R(QPersistentModelIndex(index)));
+        return std::unique_ptr<R>(new R(this, QPersistentModelIndex(index)));
     }
 
     // ---------- Drag/drop, value-based ----------
@@ -164,11 +215,17 @@ public:
     }
 
 protected:
+    // Read the value the model stores at `index`, returned by const reference
+    // straight out of the subclass's storage (no QVariant round-trip). This is
+    // the typed read hook behind Ref::getValue. `index` is guaranteed valid by
+    // the callers.
+    virtual const T &getStorageValue(const QModelIndex &index) const = 0;
+
     // Write `value` to the model's underlying storage at `index` and emit the
     // appropriate dataChanged notification. This is the single write+notify
-    // hook used by setData; the ItemProxy<T> path (owned by subclasses)
-    // bypasses it, mutating the reference directly and emitting dataChanged
-    // from its own destructor.
+    // hook used by setData and Ref::setValue; the ItemProxy<T> path (owned by
+    // subclasses) bypasses it, mutating the reference directly and emitting
+    // dataChanged from its own destructor.
     virtual void setStorageValue(const QModelIndex &index, T value) = 0;
 
 private:

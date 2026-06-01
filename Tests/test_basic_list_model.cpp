@@ -1,5 +1,4 @@
 #include "CuteModel/BasicListModel.h"
-#include "CuteModel/Ref.h"
 #include "CuteModel/RefBase.h"
 #include "CuteModel/ValueRole.h"
 
@@ -21,7 +20,6 @@
 #include <optional>
 
 using cute::BasicListModel;
-using cute::Ref;
 using cute::ValueRole;
 
 namespace {
@@ -508,7 +506,7 @@ TEST_F(BasicListModelTest, SetDataDrivesRefValueChanged)
 {
     model.push_back(QStringLiteral("a"));
 
-    auto ref = model.getRef<Ref<QString>>(model.index(0, 0));
+    auto ref = model.getRef<StringListModel::Ref>(model.index(0, 0));
     ASSERT_NE(ref, nullptr);
     QSignalSpy valueChangedSpy(ref.get(), &cute::RefBase::valueChanged);
 
@@ -684,7 +682,7 @@ TEST_F(PodListModelTest, RefGetValueReadsPodFromValueRole)
 {
     model.push_back(Pod{7, QStringLiteral("seven")});
 
-    auto ref = model.getRef<Ref<Pod>>(model.index(0, 0));
+    auto ref = model.getRef<PodListModel::Ref>(model.index(0, 0));
     ASSERT_NE(ref, nullptr);
 
     EXPECT_TRUE(ref->getValue() == (Pod{7, QStringLiteral("seven")}));
@@ -694,7 +692,7 @@ TEST_F(PodListModelTest, GetMutableDrivesRefValueChanged)
 {
     model.push_back(Pod{1, QStringLiteral("one")});
 
-    auto ref = model.getRef<Ref<Pod>>(model.index(0, 0));
+    auto ref = model.getRef<PodListModel::Ref>(model.index(0, 0));
     ASSERT_NE(ref, nullptr);
     QSignalSpy valueChangedSpy(ref.get(), &cute::RefBase::valueChanged);
 
@@ -708,7 +706,7 @@ TEST_F(PodListModelTest, SetDataDrivesRefValueChanged)
 {
     model.push_back(Pod{1, QStringLiteral("one")});
 
-    auto ref = model.getRef<Ref<Pod>>(model.index(0, 0));
+    auto ref = model.getRef<PodListModel::Ref>(model.index(0, 0));
     ASSERT_NE(ref, nullptr);
     QSignalSpy valueChangedSpy(ref.get(), &cute::RefBase::valueChanged);
 

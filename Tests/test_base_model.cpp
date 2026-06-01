@@ -73,6 +73,8 @@ public:
     int storage() const { return m_value; }
 
 protected:
+    const int &getStorageValue(const QModelIndex &) const override { return m_value; }
+
     void setStorageValue(const QModelIndex &index, int value) override
     {
         m_value = value;

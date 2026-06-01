@@ -1,5 +1,4 @@
 #include "CuteModel/BasicListModel.h"
-#include "CuteModel/Ref.h"
 #include "CuteModel/RefBase.h"
 
 #include <QCoreApplication>
@@ -10,7 +9,6 @@
 #include <memory>
 
 using cute::BasicListModel;
-using cute::Ref;
 
 namespace {
 
@@ -41,7 +39,8 @@ int main(int argc, char **argv)
     model.push_back(QStringLiteral("beta"));
     model.push_back(QStringLiteral("gamma"));
 
-    std::unique_ptr<Ref<QString>> ref = model.getRef<Ref<QString>>(model.index(1, 0));
+    std::unique_ptr<StringListModel::Ref> ref =
+        model.getRef<StringListModel::Ref>(model.index(1, 0));
 
     QObject::connect(ref.get(), &cute::RefBase::valueChanged, [&ref] {
         qInfo() << "value changed to:" << ref->getValue();
