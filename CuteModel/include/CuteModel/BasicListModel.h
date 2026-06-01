@@ -137,26 +137,26 @@ public:
     }
 
     // ---------- Read path ----------
-
-    QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override
-    {
-        QModelRoleData roleData(role);
-        multiData(index, roleData);
-        return roleData.data();
-    }
+    //
+    // data(QModelIndex) lives in BaseModel. ValueRole is handled by
+    // BaseModel::multiData (only when T supports it); this override delegates to
+    // it first and then projects the remaining, column-specific roles — so the
+    // ValueRole case never needs to be special-cased here.
 
     void multiData(const QModelIndex &index, QModelRoleDataSpan roleDataSpan) const override
     {
         if (!this->checkIndex(index, QAbstractItemModel::CheckIndexOption::IndexIsValid))
             return;
 
+        BaseModel<T>::multiData(index, roleDataSpan);
+
         const T &value = m_items[static_cast<std::size_t>(index.row())];
         const int column = index.column();
         for (QModelRoleData &roleData : roleDataSpan) {
-            if (roleData.role() == ValueRole) {
-                roleData.setData(QVariant::fromValue(value));
-            } else if (QVariant projected = data(value, column, roleData.role());
-                       projected.isValid()) {
+            if (roleData.role() == ValueRole)
+                continue;
+            if (QVariant projected = data(value, column, roleData.role());
+                projected.isValid()) {
                 roleData.data() = std::move(projected);
             } else {
                 roleData.clearData();
