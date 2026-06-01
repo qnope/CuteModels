@@ -15,9 +15,6 @@ using cute::ValueRole;
 
 namespace {
 
-// Minimal concrete model exposing its values through ValueRole. Refs are only
-// constructible through BaseModel::getRef, so the test fixture needs a real
-// BaseModel<T> subclass rather than a bare QAbstractListModel.
 class ValueListModel : public BasicListModel<QString>
 {
 public:
@@ -39,7 +36,7 @@ std::unique_ptr<ValueListModel> makeModel(const QString &value)
     return model;
 }
 
-} // namespace
+}
 
 TEST(Ref, GetValueReadsValueRole)
 {
@@ -108,6 +105,5 @@ TEST(GetRef, ConstructsTypedRef)
 
     ASSERT_NE(ref, nullptr);
     EXPECT_EQ(ref->getValue(), QStringLiteral("world"));
-    // The Ref is owned by the caller (unique_ptr), not parented to the model.
     EXPECT_EQ(ref->parent(), nullptr);
 }

@@ -131,4 +131,4 @@ protected:
     virtual void setStorageValue(const QModelIndex &index, T value) = 0;
 };
 
-} // namespace cute
+}

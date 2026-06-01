@@ -18,26 +18,12 @@
 
 namespace cute {
 
-// Flat, in-memory list model backed by a std::vector<T>: 1D storage but
-// N-column-displayable. A QStringList headers constructor argument fixes the
-// column count; each row is still one T, and subclasses project that T to
-// roles per column via data(const T&, int column, int role).
-//
-// A row is one whole T, so an edit always rewrites the entire T and refreshes
-// every column of that row. Columns > 0 are non-editable by default —
-// flags(T&, column) strips ItemIsEditable for col>0 — but the write itself is
-// column-agnostic: only the row matters. True 2D storage (independent T per
-// cell) is reserved for the future BasicTableModel<T>.
 template <typename T>
 class BasicListModel : public BaseModel<T>
 {
 public:
     using const_iterator = typename std::vector<T>::const_iterator;
 
-    // Two ctors declared explicitly (rather than `using BaseModel<T>::BaseModel`)
-    // because MSVC flags inherited-ctor + new-ctor combinations as ambiguous
-    // during default-construction of subclasses, even when overload resolution
-    // is unambiguous on paper.
     explicit BasicListModel(QObject *parent = nullptr) : BaseModel<T>(parent) {}
 
     explicit BasicListModel(QStringList headers, QObject *parent = nullptr)
@@ -45,15 +31,7 @@ public:
         , m_headers(headers.isEmpty() ? QStringList{QString()} : std::move(headers))
     {}
 
-    // BaseModel owns data(const QModelIndex&, int); pull it into scope so the
-    // role-projection overload below does not hide it from callers.
     using BaseModel<T>::data;
-
-    // ---------- Role projection (per-column — list-specific) ----------
-    //
-    // Subclasses describe how a stored value maps to roles other than
-    // ValueRole, for each column; return an invalid QVariant for unhandled
-    // (column, role) pairs.
 
     virtual QVariant data(const T &value, int column, int role) const = 0;
 
@@ -64,22 +42,6 @@ public:
             base |= Qt::ItemIsEditable;
         return base;
     }
-
-    // ---------- Drop hooks (list-specific) ----------
-    //
-    // A drop on a flat list resolves to exactly one of two shapes, and the
-    // structural dispatch (canDropMimeData / dropMimeData below) feeds the
-    // matching hook so subclasses never inspect a raw QModelIndex:
-    //
-    //   * onElement   — the drop lands ON an existing row. The hook receives
-    //                   that row's value by const reference plus the targeted
-    //                   column. (Qt's "row == -1, parent valid" convention.)
-    //   * insertion   — the drop lands BETWEEN rows (or past the end). The hook
-    //                   receives the insertion row. A drop on the empty
-    //                   viewport (Qt's "row == -1, parent invalid") is routed
-    //                   here as an append, i.e. row == size().
-    //
-    // Default behavior: refuse everything.
 
     virtual bool canDropOnElement(const T &element, int column,
                                   Qt::DropAction action, const QMimeData *data) const
@@ -104,8 +66,6 @@ public:
     {
         return false;
     }
-
-    // ---------- Structural overrides ----------
 
     int rowCount(const QModelIndex &parent = QModelIndex()) const override
     {
@@ -140,13 +100,6 @@ public:
         return QAbstractItemModel::headerData(section, orientation, role);
     }
 
-    // ---------- Read path ----------
-    //
-    // data(QModelIndex) and the ValueRole branch of multiData live in BaseModel.
-    // Here multiData defers to BaseModel for ValueRole, then projects the
-    // remaining (column, role) pairs — so the ValueRole / trait case never has
-    // to be restated at this level.
-
     void multiData(const QModelIndex &index, QModelRoleDataSpan roleDataSpan) const override
     {
         BaseModel<T>::multiData(index, roleDataSpan);
@@ -158,7 +111,7 @@ public:
         const int column = index.column();
         for (QModelRoleData &roleData : roleDataSpan) {
             if (roleData.role() == ValueRole)
-                continue; // handled by BaseModel::multiData
+                continue;
             if (QVariant projected = data(value, column, roleData.role());
                 projected.isValid()) {
                 roleData.data() = std::move(projected);
@@ -174,14 +127,6 @@ public:
             return Qt::NoItemFlags;
         return flags(m_items[static_cast<std::size_t>(index.row())], index.column());
     }
-
-    // ---------- Drop dispatch ----------
-    //
-    // Translate Qt's (row, column, parent) drop coordinates into the
-    // list-shaped onElement / insertion hooks above:
-    //   * parent valid            -> onElement (the targeted row's value)
-    //   * parent invalid, row >= 0 -> insertion at that row
-    //   * parent invalid, row < 0  -> insertion appended at size()
 
     bool canDropMimeData(const QMimeData *data, Qt::DropAction action,
                          int row, int column, const QModelIndex &parent) const override
@@ -200,8 +145,6 @@ public:
                                  parent.column(), action, data);
         return dropInsertion(row < 0 ? size() : row, column, action, data);
     }
-
-    // ---------- Container API ----------
 
     int size() const noexcept { return static_cast<int>(m_items.size()); }
     bool empty() const noexcept { return m_items.empty(); }
@@ -289,13 +232,6 @@ public:
         }
     }
 
-    // ---------- Ergonomic int-row accessors ----------
-    //
-    // ItemProxy holds a reference straight into m_items (no QVariant
-    // round-trip). An out-of-range row yields an invalid index, which makes
-    // the ItemProxy constructor terminate — callers are expected to pass a
-    // live row.
-
     ItemProxy<const T> at(int row) const
     {
         return ItemProxy<const T>(m_items[static_cast<std::size_t>(row)],
@@ -310,25 +246,17 @@ public:
                             QPersistentModelIndex(this->index(row, 0)));
     }
 
-    // ---------- Raw-storage iteration ----------
-
     const_iterator begin() const noexcept { return m_items.begin(); }
     const_iterator end() const noexcept { return m_items.end(); }
     const_iterator cbegin() const noexcept { return m_items.cbegin(); }
     const_iterator cend() const noexcept { return m_items.cend(); }
 
 protected:
-    // A row is one whole T, so the stored value is addressed by row alone (the
-    // column is irrelevant) and returned by const reference straight out of
-    // m_items.
     const T &getStorageValue(const QModelIndex &index) const override
     {
         return m_items[static_cast<std::size_t>(index.row())];
     }
 
-    // A row is one whole T, so writing it refreshes every column of the row:
-    // emit dataChanged across the full row range (columns 0..columnCount-1),
-    // not just the edited cell. Only the row is significant here.
     void setStorageValue(const QModelIndex &index, T value) override
     {
         m_items[static_cast<std::size_t>(index.row())] = std::move(value);
@@ -342,4 +270,4 @@ private:
     QStringList m_headers{QString()};
 };
 
-} // namespace cute
+}

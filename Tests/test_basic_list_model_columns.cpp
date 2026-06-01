@@ -67,7 +67,7 @@ public:
     }
 };
 
-} // namespace
+}
 
 TEST_F(MultiColumnPodModelTest, ColumnCountMatchesHeaders)
 {
@@ -131,10 +131,6 @@ TEST_F(MultiColumnPodModelTest, Column0EditEmitsRowRangeDataChanged)
     EXPECT_EQ(args.at(1).value<QModelIndex>().row(), 0);
 }
 
-// A row is one whole T: only the row is significant, so a write addressed
-// through any column rewrites the entire row and emits a row-wide dataChanged.
-// (Columns > 0 are still non-editable via flags(); see
-// FlagsDefaultEditableOnlyOnColumn0.)
 TEST_F(MultiColumnPodModelTest, ColumnNWriteRewritesWholeRow)
 {
     model.push_back(Pod{1, QStringLiteral("one")});

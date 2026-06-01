@@ -10,34 +10,6 @@
 
 namespace cute {
 
-// Proxy over one cell of a model. Holds a reference to the underlying T (so
-// reads and writes pass straight through to storage — no QVariant round-trip)
-// and a QPersistentModelIndex (used only by the destructor to address the
-// dataChanged signal).
-//
-// Const-ness is selected by the template parameter:
-//   ItemProxy<const T>   — read-only view; destructor is a no-op.
-//   ItemProxy<T>         — mutable view; destructor emits dataChanged(idx, idx)
-//                          exactly once, so multiple in-lifetime mutations
-//                          batch into a single notification.
-//
-// Non-copyable / non-movable to keep the "one proxy -> at most one
-// dataChanged" RAII invariant. Returning by value from BaseModel::at /
-// getMutable works thanks to C++17 mandatory copy elision (the prvalue
-// initializes the named variable directly).
-//
-// Invalid index at construction terminates — callers are expected to have
-// resolved the index first. If the row is removed during the proxy's
-// lifetime, the QPersistentModelIndex becomes invalid and the destructor
-// silently skips the dataChanged emit. (The held T& itself is invalidated
-// by the same erase; callers must stop using the proxy after such an op.)
-//
-// The destructor emits dataChanged across the whole row of the proxy's
-// index (columns 0..columnCount-1). Models where "one row = one T" — like
-// BasicListModel<T> — need every column view to refresh when T mutates;
-// pinning the emission to the proxy's single (row, col) cell would miss
-// the sibling columns projecting the same T. Models with independent T
-// per cell (future BasicTableModel<T>) will need to revisit this scope.
 template <typename T>
 class ItemProxy
 {
@@ -68,15 +40,9 @@ public:
         }
     }
 
-    // Pointer-like accessors. The returned T is exactly the template T —
-    // const-correctness flows from the instantiation.
     T &operator*() const noexcept { return m_value; }
     T *operator->() const noexcept { return std::addressof(m_value); }
 
-    // Convenience assignment. Calling this on an ItemProxy<const T> fires
-    // the static_assert with a clear, dedicated diagnostic instead of the
-    // assignment-to-const-reference error that would come from m_value's
-    // type otherwise.
     ItemProxy &operator=(T value)
     {
         static_assert(!std::is_const_v<T>,
@@ -93,4 +59,4 @@ private:
     QPersistentModelIndex m_index;
 };
 
-} // namespace cute
+}
