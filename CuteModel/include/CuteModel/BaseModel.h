@@ -70,8 +70,8 @@ public:
     template <typename R = Ref<T>>
     std::unique_ptr<R> getRef(const QModelIndex &index)
     {
-        static_assert(std::is_base_of_v<RefBase, R>,
-                      "getRef<R> requires R to derive from RefBase");
+        static_assert(std::is_base_of_v<Ref<T>, R>,
+                      "getRef<R> requires R to derive from Ref<T>");
 
         if (!index.isValid())
             return nullptr;
