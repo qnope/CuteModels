@@ -18,12 +18,6 @@ using cute::ValueRole;
 
 namespace {
 
-// Minimal BaseModel<int> with a single storage cell. Exists only to lock the
-// BaseModel contract (setData role policy + setStorageValue write hook,
-// roleNames, the value-based drag source, the ValueRole read path that mimeData
-// relies on, and the data/multiData read path BaseModel now owns) independently
-// from BasicListModel's list-shaped structure. ValueRole is serviced by
-// BaseModel::multiData; this fixture only layers DisplayRole on top.
 class SingleCellModel : public BaseModel<int>
 {
 public:
@@ -51,7 +45,7 @@ public:
 
     void multiData(const QModelIndex &index, QModelRoleDataSpan roleDataSpan) const override
     {
-        BaseModel<int>::multiData(index, roleDataSpan); // fills ValueRole
+        BaseModel<int>::multiData(index, roleDataSpan);
         if (!checkIndex(index, CheckIndexOption::IndexIsValid))
             return;
         for (QModelRoleData &roleData : roleDataSpan) {
@@ -86,11 +80,6 @@ protected:
     QAbstractItemModelTester tester{&model, QAbstractItemModelTester::FailureReportingMode::Fatal};
 };
 
-// A value that is copy-constructible and destructible — so it satisfies
-// BaseModel's storage requirement — but NOT default-constructible, so it fails
-// is_compatible_with_value_role. A BaseModel over it must transparently disable
-// ValueRole: roleNames omits it, setData accepts nothing, and the ValueRole read
-// path contributes no data.
 struct NoDefault
 {
     int payload;
@@ -127,8 +116,6 @@ public:
 
     QModelIndex parent(const QModelIndex &) const override { return {}; }
 
-    // BaseModel::multiData contributes nothing for ValueRole here (NoDefault is
-    // not ValueRole-compatible); this only layers DisplayRole on top.
     void multiData(const QModelIndex &index, QModelRoleDataSpan roleDataSpan) const override
     {
         BaseModel<NoDefault>::multiData(index, roleDataSpan);
@@ -162,7 +149,7 @@ protected:
     QAbstractItemModelTester tester{&model, QAbstractItemModelTester::FailureReportingMode::Fatal};
 };
 
-} // namespace
+}
 
 TEST_F(BaseModelTest, ValueRoleReadsStoredValue)
 {
@@ -188,8 +175,6 @@ TEST_F(BaseModelTest, SetDataRejectsInvalidVariant)
 {
     QSignalSpy changedSpy(&model, &QAbstractItemModel::dataChanged);
 
-    // A default-constructed QVariant is invalid and has no convertibility,
-    // so setData refuses it.
     EXPECT_FALSE(model.setData(model.index(0, 0), QVariant(), ValueRole));
     EXPECT_EQ(model.storage(), 0);
     EXPECT_EQ(changedSpy.count(), 0);
@@ -214,8 +199,6 @@ TEST_F(BaseModelTest, DefaultMimeDataIsNull)
     EXPECT_EQ(model.mimeData({model.index(0, 0)}), nullptr);
 }
 
-// ---------- ValueRole disabled when T is incompatible ----------
-
 TEST_F(NoValueRoleModelTest, RoleNamesOmitsValueRole)
 {
     EXPECT_FALSE(model.roleNames().contains(ValueRole));
@@ -224,8 +207,6 @@ TEST_F(NoValueRoleModelTest, RoleNamesOmitsValueRole)
 TEST_F(NoValueRoleModelTest, ValueRoleReadContributesNothing)
 {
     EXPECT_FALSE(model.index(0, 0).data(ValueRole).isValid());
-    // The non-ValueRole projection still works through the inherited
-    // data()/multiData() path.
     EXPECT_EQ(model.index(0, 0).data(Qt::DisplayRole).toInt(), 0);
 }
 
@@ -233,9 +214,6 @@ TEST_F(NoValueRoleModelTest, SetDataAcceptsNothing)
 {
     QSignalSpy changedSpy(&model, &QAbstractItemModel::dataChanged);
 
-    // No writable role exists, so every role — including the ValueRole default
-    // and roles that would terminate on a ValueRole-capable model — is refused
-    // without a write or a crash.
     EXPECT_FALSE(model.setData(model.index(0, 0), 1, ValueRole));
     EXPECT_FALSE(model.setData(model.index(0, 0), 1, Qt::EditRole));
     EXPECT_FALSE(model.setData(model.index(0, 0), 1, Qt::DisplayRole));

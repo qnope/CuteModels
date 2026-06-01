@@ -50,4 +50,4 @@ bool isInParentChain(const QModelIndex &index, const QModelIndex &ancestor)
     return false;
 }
 
-} // namespace cute
+}

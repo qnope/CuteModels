@@ -67,10 +67,6 @@ public:
     }
 };
 
-// Drop/drag-enabled subclass used by the drag/drop tests. Captures the
-// arguments the list-shaped drop hooks received so tests can inspect which
-// shape (onElement vs insertion) the dispatch resolved to; the mime payload it
-// accepts is just a single text/plain QString.
 class DroppingListModel : public BasicListModel<QString>
 {
 public:
@@ -137,7 +133,6 @@ public:
         return false;
     }
 
-    // onElement captures (can / drop).
     mutable std::optional<QString> lastCanOnElement;
     mutable int lastCanOnColumn = -42;
     mutable Qt::DropAction lastCanOnAction = Qt::IgnoreAction;
@@ -148,7 +143,6 @@ public:
     Qt::DropAction lastOnAction = Qt::IgnoreAction;
     std::optional<QString> lastOnText;
 
-    // insertion captures (can / drop).
     mutable int lastCanInsertRow = -42;
     mutable int lastCanInsertColumn = -42;
     mutable Qt::DropAction lastCanInsertAction = Qt::IgnoreAction;
@@ -189,7 +183,7 @@ QStringList rawStorageSnapshot(const StringListModel &model)
     return out;
 }
 
-} // namespace
+}
 
 TEST_F(BasicListModelTest, RowCountReflectsStorage)
 {
@@ -433,9 +427,6 @@ TEST_F(BasicListModelTest, GetMutableDefersDataChangedUntilDestruction)
     {
         auto ref = model.getMutable(0);
         ref = QStringLiteral("b");
-        // Storage is updated in line (the proxy holds a live reference),
-        // but no dataChanged has fired yet — the RAII emit only happens
-        // on destruction so multiple writes coalesce into one signal.
         EXPECT_EQ(*model.at(0), QStringLiteral("b"));
         EXPECT_EQ(changedSpy.count(), 0);
         const QString &pending = *ref;
@@ -473,9 +464,6 @@ TEST_F(BasicListModelTest, GetMutableIsNoOpWhenRowErased)
     {
         auto ref = model.getMutable(0);
         ref = QStringLiteral("new");
-        // The erase invalidates the persistent index (and shifts the row out
-        // from under the held reference). The destructor sees an invalid
-        // index and skips the dataChanged emit.
         model.erase(0);
     }
 
@@ -492,8 +480,6 @@ TEST_F(BasicListModelTest, GetMutableAlwaysEmitsOnDestruction)
 
     {
         auto ref = model.getMutable(0);
-        // No modification — the destructor still emits dataChanged
-        // unconditionally; there is no dirty tracking on the proxy.
     }
 
     EXPECT_EQ(*model.at(0), QStringLiteral("a"));
@@ -741,8 +727,6 @@ TEST_F(PodListModelTest, SetDataDrivesRefValueChanged)
     EXPECT_TRUE(ref->getValue() == (Pod{42, QStringLiteral("answer")}));
 }
 
-// ---------- setData strict-role contract ----------
-
 TEST_F(BasicListModelTest, ValueRoleWritesStraightToStorage)
 {
     model.push_back(QStringLiteral("a"));
@@ -782,8 +766,6 @@ TEST_F(BasicListModelTest, SetDataWithUnsupportedRoleTerminates)
         { (void)model.setData(model.index(0, 0), QStringLiteral("x"), Qt::UserRole + 5); },
         "");
 }
-
-// ---------- Drag / drop ----------
 
 TEST_F(DroppingListModelTest, MimeDataForSingleIndexReadsValue)
 {
@@ -840,7 +822,6 @@ TEST_F(DroppingListModelTest, DropOnViewportRoutesToInsertionAtEnd)
     QMimeData payload;
     payload.setText(QStringLiteral("tail"));
 
-    // Qt's "row == -1, parent invalid" (drop on empty viewport) appends.
     EXPECT_TRUE(model.canDropMimeData(&payload, Qt::CopyAction, -1, 0, QModelIndex()));
     EXPECT_EQ(model.lastCanInsertRow, 2);
 
@@ -870,7 +851,6 @@ TEST_F(DroppingListModelTest, DropOnExistingItemRoutesToOnElement)
     EXPECT_EQ(model.lastOnAction, Qt::MoveAction);
     ASSERT_TRUE(model.lastOnText.has_value());
     EXPECT_EQ(*model.lastOnText, QStringLiteral("payload"));
-    // onElement does not mutate storage in this fixture.
     EXPECT_EQ(model.size(), 1);
 }
 
@@ -881,8 +861,6 @@ TEST_F(DroppingListModelTest, DefaultDropRejectsBothShapes)
     QMimeData payload;
     payload.setText(QStringLiteral("ignored"));
 
-    // Insertion shape (parent invalid) and onElement shape (parent valid) both
-    // refused by the BasicListModel defaults.
     EXPECT_FALSE(plain.canDropMimeData(&payload, Qt::CopyAction, 0, 0, QModelIndex()));
     EXPECT_FALSE(plain.dropMimeData(&payload, Qt::CopyAction, 0, 0, QModelIndex()));
     EXPECT_FALSE(plain.canDropMimeData(&payload, Qt::CopyAction, -1, 0, plain.index(0, 0)));

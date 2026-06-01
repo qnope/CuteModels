@@ -20,7 +20,6 @@ target_compile_features(CuteModel PUBLIC cxx_std_17)
 
 target_link_libraries(CuteModel PUBLIC Qt6::Core)
 
-# Install / export so the library can be consumed (e.g. via vcpkg).
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
