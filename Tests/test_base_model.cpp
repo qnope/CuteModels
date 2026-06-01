@@ -6,7 +6,6 @@
 #include <QAbstractItemModel>
 #include <QAbstractItemModelTester>
 #include <QList>
-#include <QMimeData>
 #include <QModelIndex>
 #include <QModelRoleData>
 #include <QSignalSpy>
@@ -21,8 +20,8 @@ namespace {
 
 // Minimal BaseModel<int> with a single storage cell. Exists only to lock the
 // BaseModel contract (setData role policy + setStorageValue write hook,
-// roleNames, value-based drop adapters, and the ValueRole read path that
-// mimeData / drops rely on) independently from BasicListModel's list-shaped
+// roleNames, the value-based drag source, and the ValueRole read path that
+// mimeData relies on) independently from BasicListModel's list-shaped
 // structure. Implements its own multiData (exposing ValueRole) since role
 // projection is not part of BaseModel's responsibilities.
 class SingleCellModel : public BaseModel<int>
@@ -142,12 +141,4 @@ TEST_F(BaseModelTest, RoleNamesAdvertisesValueRole)
 TEST_F(BaseModelTest, DefaultMimeDataIsNull)
 {
     EXPECT_EQ(model.mimeData({model.index(0, 0)}), nullptr);
-}
-
-TEST_F(BaseModelTest, DefaultCanDropAndDropRejectAll)
-{
-    QMimeData payload;
-    payload.setText(QStringLiteral("ignored"));
-    EXPECT_FALSE(model.canDropMimeData(&payload, Qt::CopyAction, -1, 0, QModelIndex()));
-    EXPECT_FALSE(model.dropMimeData(&payload, Qt::CopyAction, -1, 0, QModelIndex()));
 }
