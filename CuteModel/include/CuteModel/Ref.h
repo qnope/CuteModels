@@ -19,7 +19,7 @@ class BaseModel;
 // class templates).
 //
 // Refs are not constructed directly: BaseModel<T> is the sole factory
-// (BaseModel::getRef), so the constructor is private and BaseModel is a
+// (BaseModel::getRef), so the constructor is protected and BaseModel is a
 // friend.
 template <typename T>
 class Ref : public RefBase
@@ -53,7 +53,7 @@ public:
         return model->setData(m_index, QVariant::fromValue(value), ValueRole);
     }
 
-private:
+protected:
     explicit Ref(QPersistentModelIndex index) : RefBase(std::move(index)) {}
 
     template <typename U>
