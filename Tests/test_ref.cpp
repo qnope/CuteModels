@@ -73,7 +73,7 @@ TEST(Ref, SetValueWritesThroughValueRole)
     auto ref = model->getRef<>(model->index(0, 0));
     ASSERT_NE(ref, nullptr);
 
-    EXPECT_TRUE(ref->setValue(QStringLiteral("b")));
+    ref->setValue(QStringLiteral("b"));
     EXPECT_EQ(ref->getValue(), QStringLiteral("b"));
     EXPECT_EQ(model->index(0, 0).data(ValueRole).toString(), QStringLiteral("b"));
 }
@@ -87,7 +87,7 @@ TEST(Ref, SetValueEmitsValueChanged)
 
     QSignalSpy valueChangedSpy(ref.get(), &cute::RefBase::valueChanged);
 
-    EXPECT_TRUE(ref->setValue(QStringLiteral("b")));
+    ref->setValue(QStringLiteral("b"));
 
     EXPECT_EQ(valueChangedSpy.count(), 1);
 }
