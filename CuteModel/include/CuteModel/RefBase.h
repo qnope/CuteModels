@@ -14,11 +14,17 @@ public:
 signals:
     void valueChanged();
     void underlyingHierarchyChanged();
+    void underlyingValueDestroyed();
 
 protected:
     explicit RefBase(QPersistentModelIndex index);
 
     QPersistentModelIndex m_index;
+
+private:
+    void notifyIfDestroyed();
+
+    bool m_destroyed = false;
 };
 
 bool isInside(const QModelIndex &index,

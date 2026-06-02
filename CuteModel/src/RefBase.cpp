@@ -16,7 +16,29 @@ RefBase::RefBase(QPersistentModelIndex index)
                     else if (isInParentChain(topLeft, m_index))
                         emit underlyingHierarchyChanged();
                 });
+
+        // rowsRemoved, columnsRemoved and layoutChanged can invalidate the
+        // persistent index this Ref tracks; modelReset invalidates every
+        // persistent index. After any of them, if the index is no longer
+        // valid the underlying value is gone for good.
+        connect(model, &QAbstractItemModel::rowsRemoved, this,
+                [this] { notifyIfDestroyed(); });
+        connect(model, &QAbstractItemModel::columnsRemoved, this,
+                [this] { notifyIfDestroyed(); });
+        connect(model, &QAbstractItemModel::layoutChanged, this,
+                [this] { notifyIfDestroyed(); });
+        connect(model, &QAbstractItemModel::modelReset, this,
+                [this] { notifyIfDestroyed(); });
     }
+}
+
+void RefBase::notifyIfDestroyed()
+{
+    if (m_destroyed || m_index.isValid())
+        return;
+
+    m_destroyed = true;
+    emit underlyingValueDestroyed();
 }
 
 bool isInside(const QModelIndex &index,

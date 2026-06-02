@@ -89,6 +89,69 @@ TEST(Ref, SetValueEmitsValueChanged)
     EXPECT_EQ(valueChangedSpy.count(), 1);
 }
 
+TEST(Ref, EmitsUnderlyingValueDestroyedWhenRowRemoved)
+{
+    auto model = makeModel(QStringLiteral("a"));
+
+    auto ref = model->getRef<>(model->index(0, 0));
+    ASSERT_NE(ref, nullptr);
+
+    QSignalSpy destroyedSpy(ref.get(), &cute::RefBase::underlyingValueDestroyed);
+
+    model->erase(0);
+
+    EXPECT_FALSE(ref->index().isValid());
+    EXPECT_EQ(destroyedSpy.count(), 1);
+}
+
+TEST(Ref, EmitsUnderlyingValueDestroyedWhenModelReset)
+{
+    auto model = makeModel(QStringLiteral("a"));
+
+    auto ref = model->getRef<>(model->index(0, 0));
+    ASSERT_NE(ref, nullptr);
+
+    QSignalSpy destroyedSpy(ref.get(), &cute::RefBase::underlyingValueDestroyed);
+
+    model->clear();
+
+    EXPECT_FALSE(ref->index().isValid());
+    EXPECT_EQ(destroyedSpy.count(), 1);
+}
+
+TEST(Ref, EmitsUnderlyingValueDestroyedOnlyOnce)
+{
+    auto model = makeModel(QStringLiteral("a"));
+
+    auto ref = model->getRef<>(model->index(0, 0));
+    ASSERT_NE(ref, nullptr);
+
+    QSignalSpy destroyedSpy(ref.get(), &cute::RefBase::underlyingValueDestroyed);
+
+    model->erase(0);
+    model->clear();
+
+    EXPECT_EQ(destroyedSpy.count(), 1);
+}
+
+TEST(Ref, DoesNotEmitUnderlyingValueDestroyedWhenIndexStaysValid)
+{
+    auto model = makeModel(QStringLiteral("a"));
+    model->push_back(QStringLiteral("b"));
+
+    auto ref = model->getRef<>(model->index(1, 0));
+    ASSERT_NE(ref, nullptr);
+
+    QSignalSpy destroyedSpy(ref.get(), &cute::RefBase::underlyingValueDestroyed);
+
+    // Removing another row shifts the tracked index but keeps it valid.
+    model->erase(0);
+
+    EXPECT_TRUE(ref->index().isValid());
+    EXPECT_EQ(ref->getValue(), QStringLiteral("b"));
+    EXPECT_EQ(destroyedSpy.count(), 0);
+}
+
 TEST(GetRef, ReturnsNullForInvalidIndex)
 {
     auto model = makeModel(QStringLiteral("x"));
