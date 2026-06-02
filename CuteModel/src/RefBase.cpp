@@ -11,10 +11,6 @@ RefBase::RefBase(QPersistentModelIndex index)
     if (const QAbstractItemModel *model = m_index.model()) {
         connect(model, &QAbstractItemModel::dataChanged, this, &RefBase::onDataChanged);
 
-        // rowsRemoved, columnsRemoved and layoutChanged can invalidate the
-        // persistent index this Ref tracks; modelReset invalidates every
-        // persistent index. After any of them, if the index is no longer
-        // valid the underlying value is gone for good.
         connect(model, &QAbstractItemModel::rowsRemoved, this, &RefBase::notifyIfDestroyed);
         connect(model, &QAbstractItemModel::columnsRemoved, this, &RefBase::notifyIfDestroyed);
         connect(model, &QAbstractItemModel::layoutChanged, this, &RefBase::notifyIfDestroyed);
