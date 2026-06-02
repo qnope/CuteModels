@@ -144,7 +144,6 @@ TEST(Ref, DoesNotEmitUnderlyingValueDestroyedWhenIndexStaysValid)
 
     QSignalSpy destroyedSpy(ref.get(), &cute::RefBase::underlyingValueDestroyed);
 
-    // Removing another row shifts the tracked index but keeps it valid.
     model->erase(0);
 
     EXPECT_TRUE(ref->index().isValid());
