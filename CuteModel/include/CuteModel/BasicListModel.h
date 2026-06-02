@@ -43,13 +43,13 @@ public:
         return base;
     }
 
-    virtual bool canDropOnElement(const T &element, int column,
+    virtual bool canDropOnElement(const T &element, const QModelIndex &index,
                                   Qt::DropAction action, const QMimeData *data) const
     {
         return false;
     }
 
-    virtual bool dropOnElement(const T &element, int column,
+    virtual bool dropOnElement(const T &element, const QModelIndex &index,
                                Qt::DropAction action, const QMimeData *data)
     {
         return false;
@@ -133,7 +133,7 @@ public:
     {
         if (parent.isValid())
             return canDropOnElement(m_items[static_cast<std::size_t>(parent.row())],
-                                    parent.column(), action, data);
+                                    parent, action, data);
         return canDropInsertion(row < 0 ? size() : row, column, action, data);
     }
 
@@ -142,7 +142,7 @@ public:
     {
         if (parent.isValid())
             return dropOnElement(m_items[static_cast<std::size_t>(parent.row())],
-                                 parent.column(), action, data);
+                                 parent, action, data);
         return dropInsertion(row < 0 ? size() : row, column, action, data);
     }
 
