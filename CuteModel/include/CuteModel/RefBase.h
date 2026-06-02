@@ -22,6 +22,7 @@ protected:
     QPersistentModelIndex m_index;
 
 private:
+    void onDataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight);
     void notifyIfDestroyed();
 
     bool m_destroyed = false;

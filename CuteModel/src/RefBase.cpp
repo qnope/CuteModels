@@ -9,27 +9,25 @@ RefBase::RefBase(QPersistentModelIndex index)
     , m_index(std::move(index))
 {
     if (const QAbstractItemModel *model = m_index.model()) {
-        connect(model, &QAbstractItemModel::dataChanged, this,
-                [this](const QModelIndex &topLeft, const QModelIndex &bottomRight) {
-                    if (isInside(m_index, topLeft, bottomRight))
-                        emit valueChanged();
-                    else if (isInParentChain(topLeft, m_index))
-                        emit underlyingHierarchyChanged();
-                });
+        connect(model, &QAbstractItemModel::dataChanged, this, &RefBase::onDataChanged);
 
         // rowsRemoved, columnsRemoved and layoutChanged can invalidate the
         // persistent index this Ref tracks; modelReset invalidates every
         // persistent index. After any of them, if the index is no longer
         // valid the underlying value is gone for good.
-        connect(model, &QAbstractItemModel::rowsRemoved, this,
-                [this] { notifyIfDestroyed(); });
-        connect(model, &QAbstractItemModel::columnsRemoved, this,
-                [this] { notifyIfDestroyed(); });
-        connect(model, &QAbstractItemModel::layoutChanged, this,
-                [this] { notifyIfDestroyed(); });
-        connect(model, &QAbstractItemModel::modelReset, this,
-                [this] { notifyIfDestroyed(); });
+        connect(model, &QAbstractItemModel::rowsRemoved, this, &RefBase::notifyIfDestroyed);
+        connect(model, &QAbstractItemModel::columnsRemoved, this, &RefBase::notifyIfDestroyed);
+        connect(model, &QAbstractItemModel::layoutChanged, this, &RefBase::notifyIfDestroyed);
+        connect(model, &QAbstractItemModel::modelReset, this, &RefBase::notifyIfDestroyed);
     }
+}
+
+void RefBase::onDataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight)
+{
+    if (isInside(m_index, topLeft, bottomRight))
+        emit valueChanged();
+    else if (isInParentChain(topLeft, m_index))
+        emit underlyingHierarchyChanged();
 }
 
 void RefBase::notifyIfDestroyed()
