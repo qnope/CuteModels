@@ -89,21 +89,21 @@ public:
         return out;
     }
 
-    bool canDropOnElement(const QString &element, int column,
+    bool canDropOnElement(const QString &element, const QModelIndex &index,
                           Qt::DropAction action, const QMimeData *data) const override
     {
         lastCanOnElement = element;
-        lastCanOnColumn = column;
+        lastCanOnIndex = index;
         lastCanOnAction = action;
         lastCanOnText = data ? std::optional<QString>(data->text()) : std::nullopt;
         return data && data->hasText();
     }
 
-    bool dropOnElement(const QString &element, int column,
+    bool dropOnElement(const QString &element, const QModelIndex &index,
                        Qt::DropAction action, const QMimeData *data) override
     {
         lastOnElement = element;
-        lastOnColumn = column;
+        lastOnIndex = index;
         lastOnAction = action;
         lastOnText = data ? std::optional<QString>(data->text()) : std::nullopt;
         return data && data->hasText();
@@ -134,12 +134,12 @@ public:
     }
 
     mutable std::optional<QString> lastCanOnElement;
-    mutable int lastCanOnColumn = -42;
+    mutable QModelIndex lastCanOnIndex;
     mutable Qt::DropAction lastCanOnAction = Qt::IgnoreAction;
     mutable std::optional<QString> lastCanOnText;
 
     std::optional<QString> lastOnElement;
-    int lastOnColumn = -42;
+    QModelIndex lastOnIndex;
     Qt::DropAction lastOnAction = Qt::IgnoreAction;
     std::optional<QString> lastOnText;
 
@@ -841,13 +841,13 @@ TEST_F(DroppingListModelTest, DropOnExistingItemRoutesToOnElement)
     EXPECT_TRUE(model.canDropMimeData(&payload, Qt::MoveAction, -1, 0, model.index(0, 0)));
     ASSERT_TRUE(model.lastCanOnElement.has_value());
     EXPECT_EQ(*model.lastCanOnElement, QStringLiteral("parent"));
-    EXPECT_EQ(model.lastCanOnColumn, 0);
+    EXPECT_EQ(model.lastCanOnIndex, model.index(0, 0));
     EXPECT_EQ(model.lastCanOnAction, Qt::MoveAction);
 
     EXPECT_TRUE(model.dropMimeData(&payload, Qt::MoveAction, -1, 0, model.index(0, 0)));
     ASSERT_TRUE(model.lastOnElement.has_value());
     EXPECT_EQ(*model.lastOnElement, QStringLiteral("parent"));
-    EXPECT_EQ(model.lastOnColumn, 0);
+    EXPECT_EQ(model.lastOnIndex, model.index(0, 0));
     EXPECT_EQ(model.lastOnAction, Qt::MoveAction);
     ASSERT_TRUE(model.lastOnText.has_value());
     EXPECT_EQ(*model.lastOnText, QStringLiteral("payload"));
