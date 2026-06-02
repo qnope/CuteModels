@@ -70,7 +70,7 @@ public:
 
     virtual QMimeData *mimeDataForValue(const T &value) const { return nullptr; }
 
-    QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override
+    QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const final
     {
         QModelRoleData roleData(role);
         multiData(index, roleData);
@@ -83,8 +83,10 @@ public:
             return;
         if constexpr (is_compatible_with_value_role_v<T>) {
             for (QModelRoleData &roleData : roleDataSpan) {
-                if (roleData.role() == ValueRole)
+                if (roleData.role() == ValueRole) {
                     roleData.setData(QVariant::fromValue(getStorageValue(index)));
+                    return;
+                }
             }
         }
     }
@@ -115,7 +117,7 @@ public:
         return names;
     }
 
-    QMimeData *mimeData(const QModelIndexList &indexes) const override
+    QMimeData *mimeData(const QModelIndexList &indexes) const final
     {
         if (indexes.size() != 1)
             return nullptr;
