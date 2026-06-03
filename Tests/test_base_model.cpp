@@ -282,12 +282,11 @@ TEST_F(NoValueRoleModelTest, SetDataAcceptsNothing)
     EXPECT_EQ(changedSpy.count(), 0);
 }
 
-TEST_F(TwoColumnModelTest, FlagsDefaultEditableOnlyOnColumn0)
+TEST_F(TwoColumnModelTest, FlagsDefaultToSelectableAndEnabled)
 {
-    EXPECT_TRUE(model.flags(model.index(0, 0)) & Qt::ItemIsEditable);
-    EXPECT_FALSE(model.flags(model.index(0, 1)) & Qt::ItemIsEditable);
-    EXPECT_TRUE(model.flags(model.index(0, 1)) & Qt::ItemIsSelectable);
-    EXPECT_TRUE(model.flags(model.index(0, 1)) & Qt::ItemIsEnabled);
+    const Qt::ItemFlags expected = Qt::ItemIsSelectable | Qt::ItemIsEnabled;
+    EXPECT_EQ(model.flags(model.index(0, 0)), expected);
+    EXPECT_EQ(model.flags(model.index(0, 1)), expected);
 }
 
 TEST_F(TwoColumnModelTest, FlagsOnInvalidIndexAreNoneByDefault)
@@ -303,7 +302,7 @@ TEST_F(TwoColumnModelTest, RootFlagsAreSettableAndReturnedForInvalidIndex)
     EXPECT_EQ(model.rootFlags(), Qt::ItemIsDropEnabled);
     EXPECT_EQ(model.flags(QModelIndex()), Qt::ItemIsDropEnabled);
     // Valid indices still resolve through the per-element customization point.
-    EXPECT_TRUE(model.flags(model.index(0, 0)) & Qt::ItemIsEditable);
+    EXPECT_TRUE(model.flags(model.index(0, 0)) & Qt::ItemIsSelectable);
 }
 
 TEST(BaseModelFlags, OverridenFlagsReceiveValueAndIndex)
