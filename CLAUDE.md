@@ -20,8 +20,8 @@ CuteModel is a C++ library for Qt providing templated model types.
 7. Edition will be done through a cache with `submit` / `revert`.
 
 ## Different Models targetted
-1. BaseModel<T> : Inherit from QAbstractItemModel. Handle drop(T) events, edit with caching, expose getValue function etc.
-1. BasicListModel<T> : inherit from BaseModel. **1D storage (`std::vector<T>`) but N-column displayable** — a `QStringList headers` ctor argument fixes the column count; subclasses project each T to roles via `data(const T&, int column, int role)`. A row is one whole T: any edit rewrites the entire T and refreshes every column of the row (only the row matters). Columns > 0 are non-editable by default via `flags()`.
+1. BaseModel<T> : Inherit from QAbstractItemModel. Handle drop(T) events, edit with caching, expose getValue function etc. Owns the `flags()` dispatch: the `QModelIndex` override is `final` and resolves the element before delegating to the virtual `flags(const T&, const QModelIndex&)` customization point (default `Qt::ItemIsSelectable | Qt::ItemIsEnabled`). The flags returned for the invalid/root index come from a settable `rootFlags()` / `setRootFlags()` attribute (default `Qt::NoItemFlags`).
+1. BasicListModel<T> : inherit from BaseModel. **1D storage (`std::vector<T>`) but N-column displayable** — a `QStringList headers` ctor argument fixes the column count; subclasses project each T to roles via `data(const T&, int column, int role)`. A row is one whole T: any edit rewrites the entire T and refreshes every column of the row (only the row matters).
 2. BasicTableModel<T> : inherit from BaseModel. **True 2D storage** — independent T per cell, per-cell edit cache for multi-column row commits. Distinct from BasicListModel, not subsumed by it.
 3. BasicTreeModel<T> : inherit from BaseModel
 4. AggregatedListModel<Model (maybe not templated)> : inherit from BaseModel and add Model inside instead of elements
