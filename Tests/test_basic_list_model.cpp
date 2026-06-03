@@ -82,11 +82,16 @@ public:
         return {};
     }
 
-    QMimeData *mimeDataForValue(const QString &value) const override
+    QString mimeTypeForValue() const override
     {
-        auto *out = new QMimeData;
-        out->setText(value);
-        return out;
+        return QStringLiteral("text/plain");
+    }
+
+    void encodeMimeData(QByteArray &out, const QString &value) const override
+    {
+        if (!out.isEmpty())
+            out.append('\n');
+        out.append(value.toUtf8());
     }
 
     bool canDropOnElement(const QString &element, const QModelIndex &index,
@@ -792,12 +797,23 @@ TEST_F(DroppingListModelTest, MimeDataReadsCurrentStorageValue)
     delete mime;
 }
 
-TEST_F(DroppingListModelTest, MimeDataForMultipleIndexesReturnsNull)
+TEST_F(DroppingListModelTest, MimeDataForMultipleIndexesConcatenatesValues)
 {
     model.push_back(QStringLiteral("a"));
     model.push_back(QStringLiteral("b"));
 
-    EXPECT_EQ(model.mimeData({model.index(0, 0), model.index(1, 0)}), nullptr);
+    QMimeData *mime = model.mimeData({model.index(0, 0), model.index(1, 0)});
+    ASSERT_NE(mime, nullptr);
+    EXPECT_EQ(mime->data(QStringLiteral("text/plain")), QByteArrayLiteral("a\nb"));
+    delete mime;
+}
+
+TEST_F(DroppingListModelTest, MimeDataForInvalidIndexesReturnsNull)
+{
+    model.push_back(QStringLiteral("a"));
+
+    EXPECT_EQ(model.mimeData({QModelIndex()}), nullptr);
+    EXPECT_EQ(model.mimeData({}), nullptr);
 }
 
 TEST_F(DroppingListModelTest, DropBetweenRowsRoutesToInsertion)

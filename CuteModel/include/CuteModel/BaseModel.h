@@ -68,7 +68,12 @@ public:
         return std::unique_ptr<R>(new R(this, QPersistentModelIndex(index)));
     }
 
-    virtual QMimeData *mimeDataForValue(const T &value) const { return nullptr; }
+    virtual QString mimeTypeForValue() const
+    {
+        return QStringLiteral("application/x-cutemodel-value");
+    }
+
+    virtual void encodeMimeData(QByteArray &out, const T &value) const {}
 
     virtual bool canDropOnElement(const T &element, const QModelIndex &index,
                                   Qt::DropAction action, const QMimeData *data) const
@@ -143,12 +148,18 @@ public:
 
     QMimeData *mimeData(const QModelIndexList &indexes) const final
     {
-        if (indexes.size() != 1)
+        QByteArray encoded;
+        for (const QModelIndex &index : indexes) {
+            if (!checkIndex(index, CheckIndexOption::IndexIsValid))
+                continue;
+            encodeMimeData(encoded, getStorageValue(index));
+        }
+        if (encoded.isEmpty())
             return nullptr;
-        const QModelIndex &index = indexes.front();
-        if (!checkIndex(index, CheckIndexOption::IndexIsValid))
-            return nullptr;
-        return mimeDataForValue(getStorageValue(index));
+
+        auto *mimeData = new QMimeData;
+        mimeData->setData(mimeTypeForValue(), encoded);
+        return mimeData;
     }
 
     bool canDropMimeData(const QMimeData *data, Qt::DropAction action,
