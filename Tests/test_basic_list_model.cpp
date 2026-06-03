@@ -136,24 +136,24 @@ public:
     }
 
     mutable std::optional<QString> lastCanOnElement;
-    mutable QModelIndex lastCanOnIndex;
+    mutable QPersistentModelIndex lastCanOnIndex;
     mutable Qt::DropAction lastCanOnAction = Qt::IgnoreAction;
     mutable std::optional<QString> lastCanOnText;
 
     std::optional<QString> lastOnElement;
-    QModelIndex lastOnIndex;
+    QPersistentModelIndex lastOnIndex;
     Qt::DropAction lastOnAction = Qt::IgnoreAction;
     std::optional<QString> lastOnText;
 
     mutable int lastCanInsertRow = -42;
     mutable int lastCanInsertColumn = -42;
-    mutable QModelIndex lastCanInsertParent;
+    mutable QPersistentModelIndex lastCanInsertParent;
     mutable Qt::DropAction lastCanInsertAction = Qt::IgnoreAction;
     mutable std::optional<QString> lastCanInsertText;
 
     int lastInsertRow = -42;
     int lastInsertColumn = -42;
-    QModelIndex lastInsertParent;
+    QPersistentModelIndex lastInsertParent;
     Qt::DropAction lastInsertAction = Qt::IgnoreAction;
     std::optional<QString> lastInsertText;
 };
