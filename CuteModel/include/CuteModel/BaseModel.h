@@ -151,6 +151,21 @@ public:
         return names;
     }
 
+    Qt::ItemFlags flags(const QModelIndex &index) const final
+    {
+        if (!checkIndex(index, CheckIndexOption::IndexIsValid))
+            return Qt::NoItemFlags;
+        return flags(getStorageValue(index), index);
+    }
+
+    virtual Qt::ItemFlags flags(const T &value, const QModelIndex &index) const
+    {
+        Qt::ItemFlags base = Qt::ItemIsSelectable | Qt::ItemIsEnabled;
+        if (index.column() == 0)
+            base |= Qt::ItemIsEditable;
+        return base;
+    }
+
     QMimeData *mimeData(const QModelIndexList &indexes) const final
     {
         std::vector<T> values;
