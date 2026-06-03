@@ -70,6 +70,30 @@ public:
 
     virtual QMimeData *mimeDataForValue(const T &value) const { return nullptr; }
 
+    virtual bool canDropOnElement(const T &element, const QModelIndex &index,
+                                  Qt::DropAction action, const QMimeData *data) const
+    {
+        return false;
+    }
+
+    virtual bool dropOnElement(const T &element, const QModelIndex &index,
+                               Qt::DropAction action, const QMimeData *data)
+    {
+        return false;
+    }
+
+    virtual bool canDropInsertion(int row, int column, const QModelIndex &parent,
+                                  Qt::DropAction action, const QMimeData *data) const
+    {
+        return false;
+    }
+
+    virtual bool dropInsertion(int row, int column, const QModelIndex &parent,
+                               Qt::DropAction action, const QMimeData *data)
+    {
+        return false;
+    }
+
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const final
     {
         QModelRoleData roleData(role);
@@ -125,6 +149,24 @@ public:
         if (!checkIndex(index, CheckIndexOption::IndexIsValid))
             return nullptr;
         return mimeDataForValue(getStorageValue(index));
+    }
+
+    bool canDropMimeData(const QMimeData *data, Qt::DropAction action,
+                         int row, int column, const QModelIndex &parent) const final
+    {
+        if (parent.isValid() && row == -1)
+            return canDropOnElement(getStorageValue(parent), parent, action, data);
+        return canDropInsertion(row < 0 ? rowCount(parent) : row, column, parent,
+                                action, data);
+    }
+
+    bool dropMimeData(const QMimeData *data, Qt::DropAction action,
+                      int row, int column, const QModelIndex &parent) final
+    {
+        if (parent.isValid() && row == -1)
+            return dropOnElement(getStorageValue(parent), parent, action, data);
+        return dropInsertion(row < 0 ? rowCount(parent) : row, column, parent,
+                             action, data);
     }
 
 protected:

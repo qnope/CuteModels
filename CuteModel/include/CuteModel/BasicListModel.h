@@ -43,30 +43,6 @@ public:
         return base;
     }
 
-    virtual bool canDropOnElement(const T &element, const QModelIndex &index,
-                                  Qt::DropAction action, const QMimeData *data) const
-    {
-        return false;
-    }
-
-    virtual bool dropOnElement(const T &element, const QModelIndex &index,
-                               Qt::DropAction action, const QMimeData *data)
-    {
-        return false;
-    }
-
-    virtual bool canDropInsertion(int row, int column,
-                                  Qt::DropAction action, const QMimeData *data) const
-    {
-        return false;
-    }
-
-    virtual bool dropInsertion(int row, int column,
-                               Qt::DropAction action, const QMimeData *data)
-    {
-        return false;
-    }
-
     int rowCount(const QModelIndex &parent = QModelIndex()) const override
     {
         return parent.isValid() ? 0 : static_cast<int>(m_items.size());
@@ -126,24 +102,6 @@ public:
         if (!index.isValid())
             return Qt::NoItemFlags;
         return flags(m_items[static_cast<std::size_t>(index.row())], index.column());
-    }
-
-    bool canDropMimeData(const QMimeData *data, Qt::DropAction action,
-                         int row, int column, const QModelIndex &parent) const override
-    {
-        if (parent.isValid())
-            return canDropOnElement(m_items[static_cast<std::size_t>(parent.row())],
-                                    parent, action, data);
-        return canDropInsertion(row < 0 ? size() : row, column, action, data);
-    }
-
-    bool dropMimeData(const QMimeData *data, Qt::DropAction action,
-                      int row, int column, const QModelIndex &parent) override
-    {
-        if (parent.isValid())
-            return dropOnElement(m_items[static_cast<std::size_t>(parent.row())],
-                                 parent, action, data);
-        return dropInsertion(row < 0 ? size() : row, column, action, data);
     }
 
     int size() const noexcept { return static_cast<int>(m_items.size()); }
