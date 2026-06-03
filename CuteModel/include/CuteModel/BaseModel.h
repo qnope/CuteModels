@@ -165,6 +165,8 @@ public:
         QByteArray encoded;
         QDataStream stream(&encoded, QIODevice::WriteOnly);
         encodeMimeData(stream, values);
+        if (encoded.isEmpty())
+            return nullptr;
 
         auto *mimeData = new QMimeData;
         mimeData->setData(mimeTypeForValue(), encoded);
