@@ -154,7 +154,7 @@ public:
     Qt::ItemFlags flags(const QModelIndex &index) const final
     {
         if (!checkIndex(index, CheckIndexOption::IndexIsValid))
-            return Qt::NoItemFlags;
+            return m_rootFlags;
         return flags(getStorageValue(index), index);
     }
 
@@ -165,6 +165,10 @@ public:
             base |= Qt::ItemIsEditable;
         return base;
     }
+
+    Qt::ItemFlags rootFlags() const { return m_rootFlags; }
+
+    void setRootFlags(Qt::ItemFlags flags) { m_rootFlags = flags; }
 
     QMimeData *mimeData(const QModelIndexList &indexes) const final
     {
@@ -223,6 +227,9 @@ protected:
     virtual const T &getStorageValue(const QModelIndex &index) const = 0;
 
     virtual void setStorageValue(const QModelIndex &index, T value) = 0;
+
+private:
+    Qt::ItemFlags m_rootFlags = Qt::NoItemFlags;
 };
 
 }
