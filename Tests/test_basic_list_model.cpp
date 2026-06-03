@@ -18,6 +18,7 @@
 #include <QVariant>
 
 #include <optional>
+#include <vector>
 
 using cute::BasicListModel;
 using cute::ValueRole;
@@ -92,6 +93,12 @@ public:
         if (!out.isEmpty())
             out.append('\n');
         out.append(value.toUtf8());
+    }
+
+    void decodeMimeData(const QByteArray &data, std::vector<QString> &out) const override
+    {
+        for (const QByteArray &line : data.split('\n'))
+            out.push_back(QString::fromUtf8(line));
     }
 
     bool canDropOnElement(const QString &element, const QModelIndex &index,
@@ -814,6 +821,42 @@ TEST_F(DroppingListModelTest, MimeDataForInvalidIndexesReturnsNull)
 
     EXPECT_EQ(model.mimeData({QModelIndex()}), nullptr);
     EXPECT_EQ(model.mimeData({}), nullptr);
+}
+
+TEST_F(DroppingListModelTest, ValuesFromMimeDataDecodesPayload)
+{
+    QMimeData payload;
+    payload.setData(QStringLiteral("text/plain"), QByteArrayLiteral("a\nb\nc"));
+
+    const std::vector<QString> values = model.valuesFromMimeData(&payload);
+    ASSERT_EQ(values.size(), 3u);
+    EXPECT_EQ(values[0], QStringLiteral("a"));
+    EXPECT_EQ(values[1], QStringLiteral("b"));
+    EXPECT_EQ(values[2], QStringLiteral("c"));
+}
+
+TEST_F(DroppingListModelTest, ValuesFromMimeDataRoundTripsEncoding)
+{
+    model.push_back(QStringLiteral("first"));
+    model.push_back(QStringLiteral("second"));
+
+    QMimeData *mime = model.mimeData({model.index(0, 0), model.index(1, 0)});
+    ASSERT_NE(mime, nullptr);
+
+    const std::vector<QString> values = model.valuesFromMimeData(mime);
+    delete mime;
+
+    ASSERT_EQ(values.size(), 2u);
+    EXPECT_EQ(values[0], QStringLiteral("first"));
+    EXPECT_EQ(values[1], QStringLiteral("second"));
+}
+
+TEST_F(DroppingListModelTest, ValuesFromMimeDataReturnsEmptyForNullOrUnknown)
+{
+    EXPECT_TRUE(model.valuesFromMimeData(nullptr).empty());
+
+    QMimeData empty;
+    EXPECT_TRUE(model.valuesFromMimeData(&empty).empty());
 }
 
 TEST_F(DroppingListModelTest, DropBetweenRowsRoutesToInsertion)

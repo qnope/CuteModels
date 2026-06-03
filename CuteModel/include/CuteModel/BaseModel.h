@@ -17,6 +17,7 @@
 #include <memory>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 namespace cute {
 
@@ -70,10 +71,12 @@ public:
 
     virtual QString mimeTypeForValue() const
     {
-        return QStringLiteral("application/x-cutemodel-value");
+        return QStringLiteral("application/vnd.cutemodel.value-list");
     }
 
     virtual void encodeMimeData(QByteArray &out, const T &value) const {}
+
+    virtual void decodeMimeData(const QByteArray &data, std::vector<T> &out) const {}
 
     virtual bool canDropOnElement(const T &element, const QModelIndex &index,
                                   Qt::DropAction action, const QMimeData *data) const
@@ -160,6 +163,20 @@ public:
         auto *mimeData = new QMimeData;
         mimeData->setData(mimeTypeForValue(), encoded);
         return mimeData;
+    }
+
+    std::vector<T> valuesFromMimeData(const QMimeData *mimeData) const
+    {
+        std::vector<T> values;
+        if (!mimeData)
+            return values;
+
+        const QByteArray encoded = mimeData->data(mimeTypeForValue());
+        if (encoded.isEmpty())
+            return values;
+
+        decodeMimeData(encoded, values);
+        return values;
     }
 
     bool canDropMimeData(const QMimeData *data, Qt::DropAction action,
