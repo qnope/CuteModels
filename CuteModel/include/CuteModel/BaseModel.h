@@ -71,7 +71,7 @@ public:
 
     virtual QString mimeTypeForValue() const
     {
-        return QStringLiteral("application/vnd.cutemodel.value-list");
+        return QStringLiteral("application/BaseModel");
     }
 
     virtual void encodeMimeData(QByteArray &out, const T &value) const {}
