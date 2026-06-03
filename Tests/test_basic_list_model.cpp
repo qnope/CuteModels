@@ -7,6 +7,8 @@
 #include <QAbstractItemModel>
 #include <QAbstractItemModelTester>
 #include <QByteArray>
+#include <QDataStream>
+#include <QIODevice>
 #include <QList>
 #include <QMimeData>
 #include <QModelIndex>
@@ -83,23 +85,25 @@ public:
         return {};
     }
 
-    QString mimeTypeForValue() const override
+    void encodeMimeData(QDataStream &stream, const std::vector<QString> &values) const override
     {
-        return QStringLiteral("text/plain");
+        stream << static_cast<quint32>(values.size());
+        for (const QString &value : values)
+            stream << value;
     }
 
-    void encodeMimeData(QByteArray &out, const QString &value) const override
+    std::vector<QString> decodeMimeData(QDataStream &stream) const override
     {
-        if (!out.isEmpty())
-            out.append('\n');
-        out.append(value.toUtf8());
-    }
+        quint32 count = 0;
+        stream >> count;
 
-    std::vector<QString> decodeMimeData(const QByteArray &data) const override
-    {
         std::vector<QString> out;
-        for (const QByteArray &line : data.split('\n'))
-            out.push_back(QString::fromUtf8(line));
+        out.reserve(count);
+        for (quint32 i = 0; i < count; ++i) {
+            QString value;
+            stream >> value;
+            out.push_back(value);
+        }
         return out;
     }
 
@@ -791,8 +795,11 @@ TEST_F(DroppingListModelTest, MimeDataForSingleIndexReadsValue)
 
     QMimeData *mime = model.mimeData({model.index(0, 0)});
     ASSERT_NE(mime, nullptr);
-    EXPECT_EQ(mime->text(), QStringLiteral("hello"));
+    const std::vector<QString> values = model.valuesFromMimeData(mime);
     delete mime;
+
+    ASSERT_EQ(values.size(), 1u);
+    EXPECT_EQ(values[0], QStringLiteral("hello"));
 }
 
 TEST_F(DroppingListModelTest, MimeDataReadsCurrentStorageValue)
@@ -802,19 +809,27 @@ TEST_F(DroppingListModelTest, MimeDataReadsCurrentStorageValue)
 
     QMimeData *mime = model.mimeData({model.index(0, 0)});
     ASSERT_NE(mime, nullptr);
-    EXPECT_EQ(mime->text(), QStringLiteral("updated"));
+    const std::vector<QString> values = model.valuesFromMimeData(mime);
     delete mime;
+
+    ASSERT_EQ(values.size(), 1u);
+    EXPECT_EQ(values[0], QStringLiteral("updated"));
 }
 
-TEST_F(DroppingListModelTest, MimeDataForMultipleIndexesConcatenatesValues)
+TEST_F(DroppingListModelTest, MimeDataForMultipleIndexesEncodesEveryValue)
 {
     model.push_back(QStringLiteral("a"));
     model.push_back(QStringLiteral("b"));
 
     QMimeData *mime = model.mimeData({model.index(0, 0), model.index(1, 0)});
     ASSERT_NE(mime, nullptr);
-    EXPECT_EQ(mime->data(QStringLiteral("text/plain")), QByteArrayLiteral("a\nb"));
+    EXPECT_TRUE(mime->hasFormat(model.mimeTypeForValue()));
+    const std::vector<QString> values = model.valuesFromMimeData(mime);
     delete mime;
+
+    ASSERT_EQ(values.size(), 2u);
+    EXPECT_EQ(values[0], QStringLiteral("a"));
+    EXPECT_EQ(values[1], QStringLiteral("b"));
 }
 
 TEST_F(DroppingListModelTest, MimeDataForInvalidIndexesReturnsNull)
@@ -827,8 +842,13 @@ TEST_F(DroppingListModelTest, MimeDataForInvalidIndexesReturnsNull)
 
 TEST_F(DroppingListModelTest, ValuesFromMimeDataDecodesPayload)
 {
+    QByteArray encoded;
+    QDataStream stream(&encoded, QIODevice::WriteOnly);
+    stream << static_cast<quint32>(3);
+    stream << QStringLiteral("a") << QStringLiteral("b") << QStringLiteral("c");
+
     QMimeData payload;
-    payload.setData(QStringLiteral("text/plain"), QByteArrayLiteral("a\nb\nc"));
+    payload.setData(model.mimeTypeForValue(), encoded);
 
     const std::vector<QString> values = model.valuesFromMimeData(&payload);
     ASSERT_EQ(values.size(), 3u);
