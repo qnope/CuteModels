@@ -35,14 +35,6 @@ public:
 
     virtual QVariant data(const T &value, int column, int role) const = 0;
 
-    virtual Qt::ItemFlags flags(const T &value, int column) const
-    {
-        Qt::ItemFlags base = Qt::ItemIsSelectable | Qt::ItemIsEnabled;
-        if (column == 0)
-            base |= Qt::ItemIsEditable;
-        return base;
-    }
-
     int rowCount(const QModelIndex &parent = QModelIndex()) const override
     {
         return parent.isValid() ? 0 : static_cast<int>(m_items.size());
@@ -95,13 +87,6 @@ public:
                 roleData.clearData();
             }
         }
-    }
-
-    Qt::ItemFlags flags(const QModelIndex &index) const override
-    {
-        if (!index.isValid())
-            return Qt::NoItemFlags;
-        return flags(m_items[static_cast<std::size_t>(index.row())], index.column());
     }
 
     int size() const noexcept { return static_cast<int>(m_items.size()); }
