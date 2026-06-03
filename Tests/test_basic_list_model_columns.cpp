@@ -104,16 +104,6 @@ TEST_F(MultiColumnPodModelTest, ValueRoleReturnsFullPodIndependentOfColumn)
     EXPECT_TRUE(model.index(0, 1).data(ValueRole).value<Pod>() == expected);
 }
 
-TEST_F(MultiColumnPodModelTest, FlagsDefaultEditableOnlyOnColumn0)
-{
-    model.push_back(Pod{1, QStringLiteral("one")});
-
-    EXPECT_TRUE(model.flags(model.index(0, 0)) & Qt::ItemIsEditable);
-    EXPECT_FALSE(model.flags(model.index(0, 1)) & Qt::ItemIsEditable);
-    EXPECT_TRUE(model.flags(model.index(0, 1)) & Qt::ItemIsSelectable);
-    EXPECT_TRUE(model.flags(model.index(0, 1)) & Qt::ItemIsEnabled);
-}
-
 TEST_F(MultiColumnPodModelTest, Column0EditEmitsRowRangeDataChanged)
 {
     model.push_back(Pod{1, QStringLiteral("one")});

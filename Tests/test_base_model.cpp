@@ -149,6 +149,68 @@ protected:
     QAbstractItemModelTester tester{&model, QAbstractItemModelTester::FailureReportingMode::Fatal};
 };
 
+class TwoColumnModel : public BaseModel<int>
+{
+public:
+    using BaseModel<int>::BaseModel;
+
+    int rowCount(const QModelIndex &parent = QModelIndex()) const override
+    {
+        return parent.isValid() ? 0 : 1;
+    }
+
+    int columnCount(const QModelIndex &parent = QModelIndex()) const override
+    {
+        return parent.isValid() ? 0 : 2;
+    }
+
+    QModelIndex index(int row, int column,
+                      const QModelIndex &parent = QModelIndex()) const override
+    {
+        if (parent.isValid() || row != 0 || column < 0 || column > 1)
+            return {};
+        return createIndex(row, column);
+    }
+
+    QModelIndex parent(const QModelIndex &) const override { return {}; }
+
+protected:
+    const int &getStorageValue(const QModelIndex &) const override { return m_value; }
+
+    void setStorageValue(const QModelIndex &index, int value) override
+    {
+        m_value = value;
+        emit dataChanged(index, index);
+    }
+
+private:
+    int m_value = 0;
+};
+
+class TwoColumnModelTest : public ::testing::Test
+{
+protected:
+    TwoColumnModel model;
+    QAbstractItemModelTester tester{&model, QAbstractItemModelTester::FailureReportingMode::Fatal};
+};
+
+// Overrides the per-element flags customization point to prove BaseModel hands
+// it the stored value and the full index (not just the column).
+class CustomFlagsModel : public TwoColumnModel
+{
+public:
+    using TwoColumnModel::TwoColumnModel;
+    using TwoColumnModel::flags;
+
+    Qt::ItemFlags flags(const int &value, const QModelIndex &index) const override
+    {
+        Qt::ItemFlags base = Qt::ItemIsSelectable | Qt::ItemIsEnabled;
+        if (value > 0 && index.column() == 1)
+            base |= Qt::ItemIsUserCheckable;
+        return base;
+    }
+};
+
 }
 
 TEST_F(BaseModelTest, ValueRoleReadsStoredValue)
@@ -218,4 +280,30 @@ TEST_F(NoValueRoleModelTest, SetDataAcceptsNothing)
     EXPECT_FALSE(model.setData(model.index(0, 0), 1, Qt::EditRole));
     EXPECT_FALSE(model.setData(model.index(0, 0), 1, Qt::DisplayRole));
     EXPECT_EQ(changedSpy.count(), 0);
+}
+
+TEST_F(TwoColumnModelTest, FlagsDefaultEditableOnlyOnColumn0)
+{
+    EXPECT_TRUE(model.flags(model.index(0, 0)) & Qt::ItemIsEditable);
+    EXPECT_FALSE(model.flags(model.index(0, 1)) & Qt::ItemIsEditable);
+    EXPECT_TRUE(model.flags(model.index(0, 1)) & Qt::ItemIsSelectable);
+    EXPECT_TRUE(model.flags(model.index(0, 1)) & Qt::ItemIsEnabled);
+}
+
+TEST_F(TwoColumnModelTest, FlagsOnInvalidIndexAreNone)
+{
+    EXPECT_EQ(model.flags(QModelIndex()), Qt::NoItemFlags);
+}
+
+TEST(BaseModelFlags, OverridenFlagsReceiveValueAndIndex)
+{
+    CustomFlagsModel model;
+    QAbstractItemModelTester tester{&model, QAbstractItemModelTester::FailureReportingMode::Fatal};
+
+    EXPECT_FALSE(model.flags(model.index(0, 1)) & Qt::ItemIsUserCheckable);
+
+    ASSERT_TRUE(model.setData(model.index(0, 0), 5, ValueRole));
+
+    EXPECT_TRUE(model.flags(model.index(0, 1)) & Qt::ItemIsUserCheckable);
+    EXPECT_FALSE(model.flags(model.index(0, 0)) & Qt::ItemIsUserCheckable);
 }
