@@ -109,21 +109,23 @@ public:
         return data && data->hasText();
     }
 
-    bool canDropInsertion(int row, int column,
+    bool canDropInsertion(int row, int column, const QModelIndex &parent,
                           Qt::DropAction action, const QMimeData *data) const override
     {
         lastCanInsertRow = row;
         lastCanInsertColumn = column;
+        lastCanInsertParent = parent;
         lastCanInsertAction = action;
         lastCanInsertText = data ? std::optional<QString>(data->text()) : std::nullopt;
         return data && data->hasText();
     }
 
-    bool dropInsertion(int row, int column,
+    bool dropInsertion(int row, int column, const QModelIndex &parent,
                        Qt::DropAction action, const QMimeData *data) override
     {
         lastInsertRow = row;
         lastInsertColumn = column;
+        lastInsertParent = parent;
         lastInsertAction = action;
         lastInsertText = data ? std::optional<QString>(data->text()) : std::nullopt;
         if (data && data->hasText()) {
@@ -145,11 +147,13 @@ public:
 
     mutable int lastCanInsertRow = -42;
     mutable int lastCanInsertColumn = -42;
+    mutable QModelIndex lastCanInsertParent;
     mutable Qt::DropAction lastCanInsertAction = Qt::IgnoreAction;
     mutable std::optional<QString> lastCanInsertText;
 
     int lastInsertRow = -42;
     int lastInsertColumn = -42;
+    QModelIndex lastInsertParent;
     Qt::DropAction lastInsertAction = Qt::IgnoreAction;
     std::optional<QString> lastInsertText;
 };
@@ -804,12 +808,14 @@ TEST_F(DroppingListModelTest, DropBetweenRowsRoutesToInsertion)
     EXPECT_TRUE(model.canDropMimeData(&payload, Qt::CopyAction, 0, 0, QModelIndex()));
     EXPECT_EQ(model.lastCanInsertRow, 0);
     EXPECT_EQ(model.lastCanInsertColumn, 0);
+    EXPECT_FALSE(model.lastCanInsertParent.isValid());
     EXPECT_EQ(model.lastCanInsertAction, Qt::CopyAction);
     ASSERT_TRUE(model.lastCanInsertText.has_value());
     EXPECT_EQ(*model.lastCanInsertText, QStringLiteral("incoming"));
 
     EXPECT_TRUE(model.dropMimeData(&payload, Qt::CopyAction, 0, 0, QModelIndex()));
     EXPECT_EQ(model.lastInsertRow, 0);
+    EXPECT_FALSE(model.lastInsertParent.isValid());
     EXPECT_EQ(model.size(), 1);
     EXPECT_EQ(*model.at(0), QStringLiteral("incoming"));
 }
