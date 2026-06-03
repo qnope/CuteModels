@@ -290,9 +290,20 @@ TEST_F(TwoColumnModelTest, FlagsDefaultEditableOnlyOnColumn0)
     EXPECT_TRUE(model.flags(model.index(0, 1)) & Qt::ItemIsEnabled);
 }
 
-TEST_F(TwoColumnModelTest, FlagsOnInvalidIndexAreNone)
+TEST_F(TwoColumnModelTest, FlagsOnInvalidIndexAreNoneByDefault)
 {
     EXPECT_EQ(model.flags(QModelIndex()), Qt::NoItemFlags);
+    EXPECT_EQ(model.rootFlags(), Qt::NoItemFlags);
+}
+
+TEST_F(TwoColumnModelTest, RootFlagsAreSettableAndReturnedForInvalidIndex)
+{
+    model.setRootFlags(Qt::ItemIsDropEnabled);
+
+    EXPECT_EQ(model.rootFlags(), Qt::ItemIsDropEnabled);
+    EXPECT_EQ(model.flags(QModelIndex()), Qt::ItemIsDropEnabled);
+    // Valid indices still resolve through the per-element customization point.
+    EXPECT_TRUE(model.flags(model.index(0, 0)) & Qt::ItemIsEditable);
 }
 
 TEST(BaseModelFlags, OverridenFlagsReceiveValueAndIndex)
