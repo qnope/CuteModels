@@ -160,10 +160,7 @@ public:
 
     virtual Qt::ItemFlags flags(const T &value, const QModelIndex &index) const
     {
-        Qt::ItemFlags base = Qt::ItemIsSelectable | Qt::ItemIsEnabled;
-        if (index.column() == 0)
-            base |= Qt::ItemIsEditable;
-        return base;
+        return Qt::ItemIsSelectable | Qt::ItemIsEnabled;
     }
 
     Qt::ItemFlags rootFlags() const { return m_rootFlags; }
