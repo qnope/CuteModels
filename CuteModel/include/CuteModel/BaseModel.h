@@ -5,7 +5,9 @@
 
 #include <QAbstractItemModel>
 #include <QByteArray>
+#include <QDataStream>
 #include <QHash>
+#include <QIODevice>
 #include <QMimeData>
 #include <QModelIndex>
 #include <QModelIndexList>
@@ -74,9 +76,9 @@ public:
         return QStringLiteral("application/BaseModel");
     }
 
-    virtual void encodeMimeData(QByteArray &out, const T &value) const {}
+    virtual void encodeMimeData(QDataStream &stream, const std::vector<T> &values) const {}
 
-    virtual std::vector<T> decodeMimeData(const QByteArray &data) const { return {}; }
+    virtual std::vector<T> decodeMimeData(QDataStream &stream) const { return {}; }
 
     virtual bool canDropOnElement(const T &element, const QModelIndex &index,
                                   Qt::DropAction action, const QMimeData *data) const
@@ -151,14 +153,18 @@ public:
 
     QMimeData *mimeData(const QModelIndexList &indexes) const final
     {
-        QByteArray encoded;
+        std::vector<T> values;
         for (const QModelIndex &index : indexes) {
             if (!checkIndex(index, CheckIndexOption::IndexIsValid))
                 continue;
-            encodeMimeData(encoded, getStorageValue(index));
+            values.push_back(getStorageValue(index));
         }
-        if (encoded.isEmpty())
+        if (values.empty())
             return nullptr;
+
+        QByteArray encoded;
+        QDataStream stream(&encoded, QIODevice::WriteOnly);
+        encodeMimeData(stream, values);
 
         auto *mimeData = new QMimeData;
         mimeData->setData(mimeTypeForValue(), encoded);
@@ -170,11 +176,12 @@ public:
         if (!mimeData)
             return {};
 
-        const QByteArray encoded = mimeData->data(mimeTypeForValue());
+        QByteArray encoded = mimeData->data(mimeTypeForValue());
         if (encoded.isEmpty())
             return {};
 
-        return decodeMimeData(encoded);
+        QDataStream stream(&encoded, QIODevice::ReadOnly);
+        return decodeMimeData(stream);
     }
 
     bool canDropMimeData(const QMimeData *data, Qt::DropAction action,
