@@ -95,10 +95,12 @@ public:
         out.append(value.toUtf8());
     }
 
-    void decodeMimeData(const QByteArray &data, std::vector<QString> &out) const override
+    std::vector<QString> decodeMimeData(const QByteArray &data) const override
     {
+        std::vector<QString> out;
         for (const QByteArray &line : data.split('\n'))
             out.push_back(QString::fromUtf8(line));
+        return out;
     }
 
     bool canDropOnElement(const QString &element, const QModelIndex &index,

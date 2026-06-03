@@ -76,7 +76,7 @@ public:
 
     virtual void encodeMimeData(QByteArray &out, const T &value) const {}
 
-    virtual void decodeMimeData(const QByteArray &data, std::vector<T> &out) const {}
+    virtual std::vector<T> decodeMimeData(const QByteArray &data) const { return {}; }
 
     virtual bool canDropOnElement(const T &element, const QModelIndex &index,
                                   Qt::DropAction action, const QMimeData *data) const
@@ -167,16 +167,14 @@ public:
 
     std::vector<T> valuesFromMimeData(const QMimeData *mimeData) const
     {
-        std::vector<T> values;
         if (!mimeData)
-            return values;
+            return {};
 
         const QByteArray encoded = mimeData->data(mimeTypeForValue());
         if (encoded.isEmpty())
-            return values;
+            return {};
 
-        decodeMimeData(encoded, values);
-        return values;
+        return decodeMimeData(encoded);
     }
 
     bool canDropMimeData(const QMimeData *data, Qt::DropAction action,
