@@ -2,6 +2,7 @@
 
 #include "CuteModel/BaseModel.h"
 #include "CuteModel/ItemProxy.h"
+#include "CuteModel/RangeList.h"
 #include "CuteModel/ValueRole.h"
 
 #include <QMimeData>
@@ -13,6 +14,7 @@
 #include <QVariant>
 
 #include <cstddef>
+#include <exception>
 #include <utility>
 #include <vector>
 
@@ -22,8 +24,6 @@ template <typename T>
 class BasicListModel : public BaseModel<T>
 {
 public:
-    using const_iterator = typename std::vector<T>::const_iterator;
-
     explicit BasicListModel(QObject *parent = nullptr) : BaseModel<T>(parent) {}
 
     explicit BasicListModel(QStringList headers, QObject *parent = nullptr)
@@ -191,10 +191,41 @@ public:
         return ItemProxy<T>(m_items[static_cast<std::size_t>(row)], left, left, right);
     }
 
-    const_iterator begin() const noexcept { return m_items.begin(); }
-    const_iterator end() const noexcept { return m_items.end(); }
-    const_iterator cbegin() const noexcept { return m_items.cbegin(); }
-    const_iterator cend() const noexcept { return m_items.cend(); }
+    RangeList<const T> iter() const { return iter(0, size()); }
+
+    RangeList<const T> iter(int first, int number) const
+    {
+        if (first < 0 || number < 0 || first + number > size())
+            std::terminate();
+        if (number == 0)
+            return RangeList<const T>(m_items.cbegin() + first,
+                                      m_items.cbegin() + first,
+                                      QPersistentModelIndex(),
+                                      QPersistentModelIndex());
+        return RangeList<const T>(m_items.cbegin() + first,
+                                  m_items.cbegin() + first + number,
+                                  this->index(first, 0),
+                                  this->index(first + number - 1,
+                                              this->columnCount() - 1));
+    }
+
+    RangeList<T> iter_mut() { return iter_mut(0, size()); }
+
+    RangeList<T> iter_mut(int first, int number)
+    {
+        if (first < 0 || number < 0 || first + number > size())
+            std::terminate();
+        if (number == 0)
+            return RangeList<T>(m_items.begin() + first,
+                                m_items.begin() + first,
+                                QPersistentModelIndex(),
+                                QPersistentModelIndex());
+        return RangeList<T>(m_items.begin() + first,
+                            m_items.begin() + first + number,
+                            this->index(first, 0),
+                            this->index(first + number - 1,
+                                        this->columnCount() - 1));
+    }
 
 protected:
     const T &getStorageValue(const QModelIndex &index) const override

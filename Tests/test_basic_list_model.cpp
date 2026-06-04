@@ -200,7 +200,7 @@ protected:
 QStringList rawStorageSnapshot(const StringListModel &model)
 {
     QStringList out;
-    for (const QString &s : model)
+    for (const QString &s : model.iter())
         out.push_back(s);
     return out;
 }
@@ -703,10 +703,128 @@ TEST_F(BasicListModelTest, ConstIterationVisitsAllInOrder)
         model.push_back(s);
 
     QStringList seen;
-    for (const QString &s : model)
+    for (const QString &s : model.iter())
         seen.push_back(s);
 
     EXPECT_EQ(seen, expected);
+}
+
+TEST_F(BasicListModelTest, IterReadsRangeWithoutEmitting)
+{
+    for (const char *v : {"a", "b", "c", "d"})
+        model.push_back(QString::fromUtf8(v));
+
+    QSignalSpy changedSpy(&model, &QAbstractItemModel::dataChanged);
+
+    QStringList seen;
+    for (const QString &s : model.iter(1, 2))
+        seen.push_back(s);
+
+    EXPECT_EQ(seen, (QStringList{QStringLiteral("b"), QStringLiteral("c")}));
+    EXPECT_EQ(changedSpy.count(), 0);
+}
+
+TEST_F(BasicListModelTest, IterMutEmitsSingleDataChangedCoveringRange)
+{
+    for (const char *v : {"a", "b", "c", "d"})
+        model.push_back(QString::fromUtf8(v));
+
+    QSignalSpy changedSpy(&model, &QAbstractItemModel::dataChanged);
+
+    {
+        auto range = model.iter_mut(1, 2);
+        for (QString &s : range)
+            s = s.toUpper();
+    }
+
+    EXPECT_EQ(*model.at(0), QStringLiteral("a"));
+    EXPECT_EQ(*model.at(1), QStringLiteral("B"));
+    EXPECT_EQ(*model.at(2), QStringLiteral("C"));
+    EXPECT_EQ(*model.at(3), QStringLiteral("d"));
+
+    ASSERT_EQ(changedSpy.count(), 1);
+    const QList<QVariant> args = changedSpy.at(0);
+    EXPECT_EQ(args.at(0).value<QModelIndex>(), model.index(1, 0));
+    EXPECT_EQ(args.at(1).value<QModelIndex>(),
+              model.index(2, model.columnCount() - 1));
+}
+
+TEST_F(BasicListModelTest, IterMutEmitsEvenWithoutMutation)
+{
+    model.push_back(QStringLiteral("a"));
+    model.push_back(QStringLiteral("b"));
+
+    QSignalSpy changedSpy(&model, &QAbstractItemModel::dataChanged);
+
+    {
+        auto range = model.iter_mut(0, 2);
+    }
+
+    EXPECT_EQ(changedSpy.count(), 1);
+}
+
+TEST_F(BasicListModelTest, IterMutIsNoOpWhenAllRowsErased)
+{
+    model.push_back(QStringLiteral("a"));
+    model.push_back(QStringLiteral("b"));
+    model.push_back(QStringLiteral("c"));
+
+    QSignalSpy changedSpy(&model, &QAbstractItemModel::dataChanged);
+
+    {
+        auto range = model.iter_mut(0, 2);
+        model.erase(0, 1);
+    }
+
+    EXPECT_EQ(model.size(), 1);
+    EXPECT_EQ(*model.at(0), QStringLiteral("c"));
+    EXPECT_EQ(changedSpy.count(), 0);
+}
+
+TEST_F(BasicListModelTest, IterMutEmptyRangeEmitsNothing)
+{
+    model.push_back(QStringLiteral("a"));
+
+    QSignalSpy changedSpy(&model, &QAbstractItemModel::dataChanged);
+
+    {
+        auto range = model.iter_mut(0, 0);
+        EXPECT_TRUE(range.empty());
+    }
+
+    EXPECT_EQ(changedSpy.count(), 0);
+}
+
+TEST_F(BasicListModelTest, IterMutFullRangeDefaultArgs)
+{
+    model.push_back(QStringLiteral("a"));
+    model.push_back(QStringLiteral("b"));
+
+    QSignalSpy changedSpy(&model, &QAbstractItemModel::dataChanged);
+
+    {
+        auto range = model.iter_mut();
+        for (QString &s : range)
+            s = s.toUpper();
+    }
+
+    EXPECT_EQ(*model.at(0), QStringLiteral("A"));
+    EXPECT_EQ(*model.at(1), QStringLiteral("B"));
+
+    ASSERT_EQ(changedSpy.count(), 1);
+    const QList<QVariant> args = changedSpy.at(0);
+    EXPECT_EQ(args.at(0).value<QModelIndex>(), model.index(0, 0));
+    EXPECT_EQ(args.at(1).value<QModelIndex>(),
+              model.index(model.size() - 1, model.columnCount() - 1));
+}
+
+TEST_F(BasicListModelTest, IterMutOutOfRangeTerminates)
+{
+    model.push_back(QStringLiteral("a"));
+
+    EXPECT_DEATH({ (void)model.iter_mut(0, 99); }, "");
+    EXPECT_DEATH({ (void)model.iter_mut(-1, 1); }, "");
+    EXPECT_DEATH({ (void)model.iter_mut(0, -1); }, "");
 }
 
 TEST_F(PodListModelTest, RefGetValueReadsPodFromValueRole)
