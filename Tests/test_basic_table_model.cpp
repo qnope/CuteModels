@@ -638,6 +638,195 @@ TEST_F(IntTableModelTest, DegenerateZeroRowsNColumnsIsValid)
     EXPECT_EQ(model.index(0, 2).data(ValueRole).toInt(), 8);
 }
 
+TEST_F(IntTableModelTest, InsertRowsOverrideInsertsAndEmitsSignal)
+{
+    model.resize_columns(2);
+    model.push_back_row(1);
+    model.push_back_row(3);
+
+    QSignalSpy spy(&model, &QAbstractItemModel::rowsInserted);
+
+    EXPECT_TRUE(model.insertRows(1, 2));
+
+    ASSERT_EQ(spy.count(), 1);
+    const QList<QVariant> args = spy.at(0);
+    EXPECT_EQ(args.at(1).toInt(), 1);
+    EXPECT_EQ(args.at(2).toInt(), 2);
+    EXPECT_EQ(model.rowCount(), 4);
+    EXPECT_EQ(model.index(0, 0).data(ValueRole).toInt(), 1);
+    EXPECT_EQ(model.index(3, 0).data(ValueRole).toInt(), 3);
+}
+
+TEST_F(IntTableModelTest, InsertRowsOverrideAppendsAtEnd)
+{
+    model.resize_columns(1);
+    model.push_back_row(1);
+
+    EXPECT_TRUE(model.insertRows(model.rowCount(), 2));
+    EXPECT_EQ(model.rowCount(), 3);
+}
+
+TEST_F(IntTableModelTest, InsertRowsOverrideZeroCountSucceedsWithoutSignal)
+{
+    model.resize_columns(1);
+    model.push_back_row(1);
+
+    QSignalSpy spy(&model, &QAbstractItemModel::rowsInserted);
+
+    EXPECT_TRUE(model.insertRows(0, 0));
+    EXPECT_EQ(spy.count(), 0);
+    EXPECT_EQ(model.rowCount(), 1);
+}
+
+TEST_F(IntTableModelTest, InsertRowsOverrideRejectsInvalidArguments)
+{
+    model.resize_columns(1);
+    model.push_back_row(1);
+
+    QSignalSpy spy(&model, &QAbstractItemModel::rowsInserted);
+
+    EXPECT_FALSE(model.insertRows(-1, 1));
+    EXPECT_FALSE(model.insertRows(2, 1));
+    EXPECT_FALSE(model.insertRows(0, -1));
+    EXPECT_FALSE(model.insertRows(0, 1, model.index(0, 0)));
+
+    EXPECT_EQ(spy.count(), 0);
+    EXPECT_EQ(model.rowCount(), 1);
+}
+
+TEST_F(IntTableModelTest, RemoveRowsOverrideRemovesAndEmitsSignal)
+{
+    model.resize_columns(1);
+    model.insert_rows(0, 5, 0);
+    for (int r = 0; r < 5; ++r)
+        model.setData(model.index(r, 0), r, ValueRole);
+
+    QSignalSpy spy(&model, &QAbstractItemModel::rowsRemoved);
+
+    EXPECT_TRUE(model.removeRows(1, 3));
+
+    ASSERT_EQ(spy.count(), 1);
+    const QList<QVariant> args = spy.at(0);
+    EXPECT_EQ(args.at(1).toInt(), 1);
+    EXPECT_EQ(args.at(2).toInt(), 3);
+    EXPECT_EQ(model.rowCount(), 2);
+    EXPECT_EQ(model.index(0, 0).data(ValueRole).toInt(), 0);
+    EXPECT_EQ(model.index(1, 0).data(ValueRole).toInt(), 4);
+}
+
+TEST_F(IntTableModelTest, RemoveRowsOverrideZeroCountSucceedsWithoutSignal)
+{
+    model.resize_columns(1);
+    model.push_back_row(1);
+
+    QSignalSpy spy(&model, &QAbstractItemModel::rowsRemoved);
+
+    EXPECT_TRUE(model.removeRows(0, 0));
+    EXPECT_EQ(spy.count(), 0);
+    EXPECT_EQ(model.rowCount(), 1);
+}
+
+TEST_F(IntTableModelTest, RemoveRowsOverrideRejectsInvalidArguments)
+{
+    model.resize_columns(1);
+    model.push_back_row(1);
+
+    QSignalSpy spy(&model, &QAbstractItemModel::rowsRemoved);
+
+    EXPECT_FALSE(model.removeRows(-1, 1));
+    EXPECT_FALSE(model.removeRows(0, 2));
+    EXPECT_FALSE(model.removeRows(1, 1));
+    EXPECT_FALSE(model.removeRows(0, -1));
+    EXPECT_FALSE(model.removeRows(0, 1, model.index(0, 0)));
+
+    EXPECT_EQ(spy.count(), 0);
+    EXPECT_EQ(model.rowCount(), 1);
+}
+
+TEST_F(IntTableModelTest, InsertColumnsOverrideShiftsExistingValues)
+{
+    model.resize_rows(1);
+    model.resize_columns(2);
+    EXPECT_TRUE(model.setData(model.index(0, 0), 1, ValueRole));
+    EXPECT_TRUE(model.setData(model.index(0, 1), 3, ValueRole));
+
+    QSignalSpy spy(&model, &QAbstractItemModel::columnsInserted);
+
+    EXPECT_TRUE(model.insertColumns(1, 1));
+
+    ASSERT_EQ(spy.count(), 1);
+    const QList<QVariant> args = spy.at(0);
+    EXPECT_EQ(args.at(1).toInt(), 1);
+    EXPECT_EQ(args.at(2).toInt(), 1);
+    EXPECT_EQ(model.columnCount(), 3);
+    EXPECT_EQ(model.index(0, 0).data(ValueRole).toInt(), 1);
+    EXPECT_EQ(model.index(0, 2).data(ValueRole).toInt(), 3);
+}
+
+TEST_F(IntTableModelTest, InsertColumnsOverrideAppendsAtEnd)
+{
+    model.resize_rows(1);
+    model.resize_columns(1);
+
+    EXPECT_TRUE(model.insertColumns(model.columnCount(), 2));
+    EXPECT_EQ(model.columnCount(), 3);
+}
+
+TEST_F(IntTableModelTest, InsertColumnsOverrideRejectsInvalidArguments)
+{
+    model.resize_rows(1);
+    model.resize_columns(1);
+
+    QSignalSpy spy(&model, &QAbstractItemModel::columnsInserted);
+
+    EXPECT_FALSE(model.insertColumns(-1, 1));
+    EXPECT_FALSE(model.insertColumns(2, 1));
+    EXPECT_FALSE(model.insertColumns(0, -1));
+    EXPECT_FALSE(model.insertColumns(0, 1, model.index(0, 0)));
+    EXPECT_TRUE(model.insertColumns(0, 0));
+
+    EXPECT_EQ(spy.count(), 0);
+    EXPECT_EQ(model.columnCount(), 1);
+}
+
+TEST_F(IntTableModelTest, RemoveColumnsOverrideRemovesAndEmitsSignal)
+{
+    model.resize_rows(1);
+    model.resize_columns(5);
+    for (int c = 0; c < 5; ++c)
+        EXPECT_TRUE(model.setData(model.index(0, c), c, ValueRole));
+
+    QSignalSpy spy(&model, &QAbstractItemModel::columnsRemoved);
+
+    EXPECT_TRUE(model.removeColumns(1, 3));
+
+    ASSERT_EQ(spy.count(), 1);
+    const QList<QVariant> args = spy.at(0);
+    EXPECT_EQ(args.at(1).toInt(), 1);
+    EXPECT_EQ(args.at(2).toInt(), 3);
+    EXPECT_EQ(model.columnCount(), 2);
+    EXPECT_EQ(model.index(0, 0).data(ValueRole).toInt(), 0);
+    EXPECT_EQ(model.index(0, 1).data(ValueRole).toInt(), 4);
+}
+
+TEST_F(IntTableModelTest, RemoveColumnsOverrideRejectsInvalidArguments)
+{
+    model.resize_rows(1);
+    model.resize_columns(1);
+
+    QSignalSpy spy(&model, &QAbstractItemModel::columnsRemoved);
+
+    EXPECT_FALSE(model.removeColumns(-1, 1));
+    EXPECT_FALSE(model.removeColumns(0, 2));
+    EXPECT_FALSE(model.removeColumns(1, 1));
+    EXPECT_FALSE(model.removeColumns(0, -1));
+    EXPECT_FALSE(model.removeColumns(0, 1, model.index(0, 0)));
+    EXPECT_TRUE(model.removeColumns(0, 0));
+
+    EXPECT_EQ(spy.count(), 0);
+    EXPECT_EQ(model.columnCount(), 1);
+}
+
 TEST_F(IntTableModelTest, GetRefTracksCellValue)
 {
     model.resize_rows(1);
