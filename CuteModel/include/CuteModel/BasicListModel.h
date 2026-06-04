@@ -179,10 +179,7 @@ public:
     {
         const QModelIndex left = this->index(row, 0);
         const QModelIndex right = this->index(row, this->columnCount() - 1);
-        return ItemProxy<const T>(m_items[static_cast<std::size_t>(row)],
-                                  QPersistentModelIndex(left),
-                                  QPersistentModelIndex(left),
-                                  QPersistentModelIndex(right));
+        return ItemProxy<const T>(m_items[static_cast<std::size_t>(row)], left, left, right);
     }
 
     ItemProxy<const T> operator[](int row) const { return at(row); }
@@ -191,10 +188,7 @@ public:
     {
         const QModelIndex left = this->index(row, 0);
         const QModelIndex right = this->index(row, this->columnCount() - 1);
-        return ItemProxy<T>(m_items[static_cast<std::size_t>(row)],
-                            QPersistentModelIndex(left),
-                            QPersistentModelIndex(left),
-                            QPersistentModelIndex(right));
+        return ItemProxy<T>(m_items[static_cast<std::size_t>(row)], left, left, right);
     }
 
     const_iterator begin() const noexcept { return m_items.begin(); }
