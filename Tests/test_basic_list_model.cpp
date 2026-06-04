@@ -70,6 +70,28 @@ public:
     }
 };
 
+struct NonDefault
+{
+    explicit NonDefault(int v) : value(v) {}
+    int value;
+};
+
+class NonDefaultListModel : public BasicListModel<NonDefault>
+{
+public:
+    using BasicListModel<NonDefault>::BasicListModel;
+    using BasicListModel<NonDefault>::data;
+
+    QVariant data(const NonDefault &value, const QModelIndex &index, int role) const override
+    {
+        if (index.column() != 0)
+            return {};
+        if (role == Qt::DisplayRole)
+            return value.value;
+        return {};
+    }
+};
+
 class DroppingListModel : public BasicListModel<QString>
 {
 public:
@@ -545,6 +567,122 @@ TEST_F(BasicListModelTest, SetDataDrivesRefValueChanged)
 
     EXPECT_EQ(valueChangedSpy.count(), 1);
     EXPECT_EQ(ref->getValue(), QStringLiteral("b"));
+}
+
+TEST_F(BasicListModelTest, InsertRowsCreatesDefaultConstructedRows)
+{
+    model.push_back(QStringLiteral("a"));
+    model.push_back(QStringLiteral("d"));
+
+    QSignalSpy insertedSpy(&model, &QAbstractItemModel::rowsInserted);
+
+    EXPECT_TRUE(model.insertRows(1, 2));
+
+    ASSERT_EQ(insertedSpy.count(), 1);
+    const QList<QVariant> args = insertedSpy.at(0);
+    EXPECT_EQ(args.at(1).toInt(), 1);
+    EXPECT_EQ(args.at(2).toInt(), 2);
+    EXPECT_EQ(model.size(), 4);
+    EXPECT_EQ(*model.at(0), QStringLiteral("a"));
+    EXPECT_EQ(*model.at(1), QString());
+    EXPECT_EQ(*model.at(2), QString());
+    EXPECT_EQ(*model.at(3), QStringLiteral("d"));
+}
+
+TEST_F(BasicListModelTest, InsertRowsAtEndAppends)
+{
+    model.push_back(QStringLiteral("a"));
+
+    QSignalSpy insertedSpy(&model, &QAbstractItemModel::rowsInserted);
+
+    EXPECT_TRUE(model.insertRows(model.size(), 1));
+
+    ASSERT_EQ(insertedSpy.count(), 1);
+    const QList<QVariant> args = insertedSpy.at(0);
+    EXPECT_EQ(args.at(1).toInt(), 1);
+    EXPECT_EQ(args.at(2).toInt(), 1);
+    EXPECT_EQ(model.size(), 2);
+}
+
+TEST_F(BasicListModelTest, InsertRowsRejectsInvalidArguments)
+{
+    model.push_back(QStringLiteral("a"));
+
+    QSignalSpy insertedSpy(&model, &QAbstractItemModel::rowsInserted);
+
+    EXPECT_FALSE(model.insertRows(-1, 1));
+    EXPECT_FALSE(model.insertRows(2, 1));
+    EXPECT_FALSE(model.insertRows(0, -1));
+    EXPECT_FALSE(model.insertRows(0, 1, model.index(0, 0)));
+
+    EXPECT_EQ(insertedSpy.count(), 0);
+    EXPECT_EQ(model.size(), 1);
+}
+
+TEST_F(BasicListModelTest, InsertRowsZeroCountIsNoOp)
+{
+    model.push_back(QStringLiteral("a"));
+
+    QSignalSpy insertedSpy(&model, &QAbstractItemModel::rowsInserted);
+
+    EXPECT_TRUE(model.insertRows(0, 0));
+
+    EXPECT_EQ(insertedSpy.count(), 0);
+    EXPECT_EQ(model.size(), 1);
+}
+
+TEST_F(BasicListModelTest, RemoveRowsEmitsRowsRemoved)
+{
+    for (const char *v : {"a", "b", "c", "d"})
+        model.push_back(QString::fromUtf8(v));
+
+    QSignalSpy removedSpy(&model, &QAbstractItemModel::rowsRemoved);
+
+    EXPECT_TRUE(model.removeRows(1, 2));
+
+    ASSERT_EQ(removedSpy.count(), 1);
+    const QList<QVariant> args = removedSpy.at(0);
+    EXPECT_EQ(args.at(1).toInt(), 1);
+    EXPECT_EQ(args.at(2).toInt(), 2);
+    EXPECT_EQ(model.size(), 2);
+    EXPECT_EQ(*model.at(0), QStringLiteral("a"));
+    EXPECT_EQ(*model.at(1), QStringLiteral("d"));
+}
+
+TEST_F(BasicListModelTest, RemoveRowsRejectsInvalidArguments)
+{
+    model.push_back(QStringLiteral("a"));
+    model.push_back(QStringLiteral("b"));
+
+    QSignalSpy removedSpy(&model, &QAbstractItemModel::rowsRemoved);
+
+    EXPECT_FALSE(model.removeRows(-1, 1));
+    EXPECT_FALSE(model.removeRows(1, 2));
+    EXPECT_FALSE(model.removeRows(0, -1));
+    EXPECT_FALSE(model.removeRows(0, 1, model.index(0, 0)));
+
+    EXPECT_EQ(removedSpy.count(), 0);
+    EXPECT_EQ(model.size(), 2);
+}
+
+TEST_F(BasicListModelTest, RemoveRowsZeroCountIsNoOp)
+{
+    model.push_back(QStringLiteral("a"));
+
+    QSignalSpy removedSpy(&model, &QAbstractItemModel::rowsRemoved);
+
+    EXPECT_TRUE(model.removeRows(0, 0));
+
+    EXPECT_EQ(removedSpy.count(), 0);
+    EXPECT_EQ(model.size(), 1);
+}
+
+TEST(BasicListModelNonDefaultTest, InsertRowsTerminatesWithoutDefaultConstructor)
+{
+    NonDefaultListModel model;
+    model.push_back(NonDefault{1});
+
+    EXPECT_DEATH({ (void)model.insertRows(0, 1); }, "");
 }
 
 TEST_F(BasicListModelTest, EraseEmitsRowsRemoved)
