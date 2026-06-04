@@ -10,6 +10,7 @@
 
 #include <cstddef>
 #include <exception>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -86,6 +87,24 @@ public:
         this->endInsertRows();
     }
 
+    bool insertRows(int row, int count,
+                    const QModelIndex &parent = QModelIndex()) override
+    {
+        if (parent.isValid())
+            return false;
+        if (row < 0 || row > rows() || count < 0)
+            return false;
+        if (count == 0)
+            return true;
+
+        if constexpr (std::is_default_constructible_v<T>) {
+            insert_rows(row, count);
+            return true;
+        } else {
+            std::terminate();
+        }
+    }
+
     void erase_row(int row) { erase_rows(row, row); }
 
     void erase_rows(int first, int last)
@@ -95,6 +114,20 @@ public:
         this->beginRemoveRows(QModelIndex(), first, last);
         m_rows.erase(m_rows.begin() + first, m_rows.begin() + last + 1);
         this->endRemoveRows();
+    }
+
+    bool removeRows(int row, int count,
+                    const QModelIndex &parent = QModelIndex()) override
+    {
+        if (parent.isValid())
+            return false;
+        if (row < 0 || count < 0 || row + count > rows())
+            return false;
+        if (count == 0)
+            return true;
+
+        erase_rows(row, row + count - 1);
+        return true;
     }
 
     void resize_rows(int count, T defaultValue = T())
@@ -137,6 +170,24 @@ public:
         this->endInsertColumns();
     }
 
+    bool insertColumns(int column, int count,
+                       const QModelIndex &parent = QModelIndex()) override
+    {
+        if (parent.isValid())
+            return false;
+        if (column < 0 || column > columns() || count < 0)
+            return false;
+        if (count == 0)
+            return true;
+
+        if constexpr (std::is_default_constructible_v<T>) {
+            insert_columns(column, count);
+            return true;
+        } else {
+            std::terminate();
+        }
+    }
+
     void erase_column(int column) { erase_columns(column, column); }
 
     void erase_columns(int first, int last)
@@ -148,6 +199,20 @@ public:
             row.erase(row.begin() + first, row.begin() + last + 1);
         m_columnCount -= (last - first + 1);
         this->endRemoveColumns();
+    }
+
+    bool removeColumns(int column, int count,
+                       const QModelIndex &parent = QModelIndex()) override
+    {
+        if (parent.isValid())
+            return false;
+        if (column < 0 || count < 0 || column + count > columns())
+            return false;
+        if (count == 0)
+            return true;
+
+        erase_columns(column, column + count - 1);
+        return true;
     }
 
     void resize_columns(int count, T defaultValue = T())
