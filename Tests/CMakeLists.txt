@@ -12,7 +12,8 @@ target_sources(cutemodel_tests PRIVATE
     test_ref.cpp
     test_base_model.cpp
     test_basic_list_model.cpp
-    test_basic_list_model_columns.cpp)
+    test_basic_list_model_columns.cpp
+    test_basic_table_model.cpp)
 
 target_link_libraries(cutemodel_tests PRIVATE
     CuteModel::CuteModel

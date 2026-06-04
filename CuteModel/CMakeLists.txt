@@ -14,7 +14,8 @@ target_sources(CuteModel
             include/CuteModel/RefBase.h
             include/CuteModel/ItemProxy.h
             include/CuteModel/BaseModel.h
-            include/CuteModel/BasicListModel.h)
+            include/CuteModel/BasicListModel.h
+            include/CuteModel/BasicTableModel.h)
 
 target_compile_features(CuteModel PUBLIC cxx_std_17)
 
