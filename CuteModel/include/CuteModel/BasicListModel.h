@@ -5,9 +5,7 @@
 #include "CuteModel/RangeList.h"
 #include "CuteModel/ValueRole.h"
 
-#include <QMimeData>
 #include <QModelIndex>
-#include <QModelRoleData>
 #include <QPersistentModelIndex>
 #include <QString>
 #include <QStringList>
@@ -30,10 +28,6 @@ public:
         : BaseModel<T>(parent)
         , m_headers(headers.isEmpty() ? QStringList{QString()} : std::move(headers))
     {}
-
-    using BaseModel<T>::data;
-
-    virtual QVariant data(const T &value, int column, int role) const = 0;
 
     int rowCount(const QModelIndex &parent = QModelIndex()) const override
     {
@@ -66,27 +60,6 @@ public:
             && section >= 0 && section < m_headers.size())
             return m_headers.at(section);
         return QAbstractItemModel::headerData(section, orientation, role);
-    }
-
-    void multiData(const QModelIndex &index, QModelRoleDataSpan roleDataSpan) const override
-    {
-        BaseModel<T>::multiData(index, roleDataSpan);
-
-        if (!this->checkIndex(index, QAbstractItemModel::CheckIndexOption::IndexIsValid))
-            return;
-
-        const T &value = m_items[static_cast<std::size_t>(index.row())];
-        const int column = index.column();
-        for (QModelRoleData &roleData : roleDataSpan) {
-            if (roleData.role() == ValueRole)
-                continue;
-            if (QVariant projected = data(value, column, roleData.role());
-                projected.isValid()) {
-                roleData.data() = std::move(projected);
-            } else {
-                roleData.clearData();
-            }
-        }
     }
 
     int size() const noexcept { return static_cast<int>(m_items.size()); }
