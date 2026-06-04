@@ -14,11 +14,16 @@ template <typename T>
 class ItemProxy
 {
 public:
-    explicit ItemProxy(T &value, QPersistentModelIndex index)
+    ItemProxy(T &value,
+              QPersistentModelIndex workingIndex,
+              QPersistentModelIndex left,
+              QPersistentModelIndex right)
         : m_value(value)
-        , m_index(std::move(index))
+        , m_index(std::move(workingIndex))
+        , m_left(std::move(left))
+        , m_right(std::move(right))
     {
-        if (!m_index.isValid())
+        if (!m_index.isValid() || !m_left.isValid() || !m_right.isValid())
             std::terminate();
     }
 
@@ -29,14 +34,10 @@ public:
     ~ItemProxy()
     {
         if constexpr (!std::is_const_v<T>) {
-            if (!m_index.isValid())
+            if (!m_left.isValid())
                 return;
-            auto *model = const_cast<QAbstractItemModel *>(m_index.model());
-            const QModelIndex parent = m_index.parent();
-            const int lastCol = model->columnCount(parent) - 1;
-            const QModelIndex left = model->index(m_index.row(), 0, parent);
-            const QModelIndex right = model->index(m_index.row(), lastCol, parent);
-            emit model->dataChanged(left, right);
+            auto *model = const_cast<QAbstractItemModel *>(m_left.model());
+            emit model->dataChanged(m_left, m_right);
         }
     }
 
@@ -57,6 +58,8 @@ public:
 private:
     T &m_value;
     QPersistentModelIndex m_index;
+    QPersistentModelIndex m_left;
+    QPersistentModelIndex m_right;
 };
 
 }

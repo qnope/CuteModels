@@ -177,16 +177,24 @@ public:
 
     ItemProxy<const T> at(int row) const
     {
+        const QModelIndex left = this->index(row, 0);
+        const QModelIndex right = this->index(row, this->columnCount() - 1);
         return ItemProxy<const T>(m_items[static_cast<std::size_t>(row)],
-                                  QPersistentModelIndex(this->index(row, 0)));
+                                  QPersistentModelIndex(left),
+                                  QPersistentModelIndex(left),
+                                  QPersistentModelIndex(right));
     }
 
     ItemProxy<const T> operator[](int row) const { return at(row); }
 
     ItemProxy<T> getMutable(int row)
     {
+        const QModelIndex left = this->index(row, 0);
+        const QModelIndex right = this->index(row, this->columnCount() - 1);
         return ItemProxy<T>(m_items[static_cast<std::size_t>(row)],
-                            QPersistentModelIndex(this->index(row, 0)));
+                            QPersistentModelIndex(left),
+                            QPersistentModelIndex(left),
+                            QPersistentModelIndex(right));
     }
 
     const_iterator begin() const noexcept { return m_items.begin(); }
