@@ -13,6 +13,7 @@
 
 #include <cstddef>
 #include <exception>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -109,6 +110,45 @@ public:
         this->beginInsertRows(QModelIndex(), row, last);
         m_items.insert(m_items.begin() + row, values.begin(), values.end());
         this->endInsertRows();
+    }
+
+    bool insertRows(int row, int count,
+                    const QModelIndex &parent = QModelIndex()) override
+    {
+        if (parent.isValid())
+            return false;
+        if (row < 0 || row > size() || count < 0)
+            return false;
+        if (count == 0)
+            return true;
+
+        if constexpr (std::is_default_constructible_v<T>) {
+            const int last = row + count - 1;
+            this->beginInsertRows(QModelIndex(), row, last);
+            m_items.insert(m_items.begin() + row,
+                           static_cast<std::size_t>(count), T());
+            this->endInsertRows();
+            return true;
+        } else {
+            std::terminate();
+        }
+    }
+
+    bool removeRows(int row, int count,
+                    const QModelIndex &parent = QModelIndex()) override
+    {
+        if (parent.isValid())
+            return false;
+        if (row < 0 || count < 0 || row + count > size())
+            return false;
+        if (count == 0)
+            return true;
+
+        const int last = row + count - 1;
+        this->beginRemoveRows(QModelIndex(), row, last);
+        m_items.erase(m_items.begin() + row, m_items.begin() + row + count);
+        this->endRemoveRows();
+        return true;
     }
 
     void erase(int row) { erase(row, row); }
