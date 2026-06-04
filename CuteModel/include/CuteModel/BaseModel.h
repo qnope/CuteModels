@@ -111,19 +111,28 @@ public:
         return roleData.data();
     }
 
-    void multiData(const QModelIndex &index, QModelRoleDataSpan roleDataSpan) const override
+    void multiData(const QModelIndex &index, QModelRoleDataSpan roleDataSpan) const final
     {
         if (!checkIndex(index, CheckIndexOption::IndexIsValid))
             return;
-        if constexpr (is_compatible_with_value_role_v<T>) {
-            for (QModelRoleData &roleData : roleDataSpan) {
+        const T &value = getStorageValue(index);
+        for (QModelRoleData &roleData : roleDataSpan) {
+            if constexpr (is_compatible_with_value_role_v<T>) {
                 if (roleData.role() == ValueRole) {
-                    roleData.setData(QVariant::fromValue(getStorageValue(index)));
-                    return;
+                    roleData.setData(QVariant::fromValue(value));
+                    continue;
                 }
+            }
+            if (QVariant projected = data(value, index, roleData.role());
+                projected.isValid()) {
+                roleData.data() = std::move(projected);
+            } else {
+                roleData.clearData();
             }
         }
     }
+
+    virtual QVariant data(const T &value, const QModelIndex &index, int role) const = 0;
 
     bool setData(const QModelIndex &index, const QVariant &value,
                  int role = ValueRole) override

@@ -43,19 +43,11 @@ public:
 
     QModelIndex parent(const QModelIndex &) const override { return {}; }
 
-    void multiData(const QModelIndex &index, QModelRoleDataSpan roleDataSpan) const override
+    QVariant data(const int &value, const QModelIndex &, int role) const override
     {
-        BaseModel<int>::multiData(index, roleDataSpan);
-        if (!checkIndex(index, CheckIndexOption::IndexIsValid))
-            return;
-        for (QModelRoleData &roleData : roleDataSpan) {
-            if (roleData.role() == ValueRole)
-                continue;
-            if (roleData.role() == Qt::DisplayRole)
-                roleData.setData(QVariant::fromValue(m_value));
-            else
-                roleData.clearData();
-        }
+        if (role == Qt::DisplayRole)
+            return QVariant::fromValue(value);
+        return {};
     }
 
     int storage() const { return m_value; }
@@ -116,17 +108,11 @@ public:
 
     QModelIndex parent(const QModelIndex &) const override { return {}; }
 
-    void multiData(const QModelIndex &index, QModelRoleDataSpan roleDataSpan) const override
+    QVariant data(const NoDefault &value, const QModelIndex &, int role) const override
     {
-        BaseModel<NoDefault>::multiData(index, roleDataSpan);
-        if (!checkIndex(index, CheckIndexOption::IndexIsValid))
-            return;
-        for (QModelRoleData &roleData : roleDataSpan) {
-            if (roleData.role() == Qt::DisplayRole)
-                roleData.setData(QVariant::fromValue(m_value.payload));
-            else
-                roleData.clearData();
-        }
+        if (role == Qt::DisplayRole)
+            return QVariant::fromValue(value.payload);
+        return {};
     }
 
 protected:
@@ -173,6 +159,8 @@ public:
     }
 
     QModelIndex parent(const QModelIndex &) const override { return {}; }
+
+    QVariant data(const int &, const QModelIndex &, int) const override { return {}; }
 
 protected:
     const int &getStorageValue(const QModelIndex &) const override { return m_value; }

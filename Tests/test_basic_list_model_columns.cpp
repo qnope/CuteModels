@@ -35,13 +35,13 @@ public:
         : BasicListModel<Pod>(QStringList{QStringLiteral("ID"), QStringLiteral("Label")})
     {}
 
-    QVariant data(const Pod &value, int column, int role) const override
+    QVariant data(const Pod &value, const QModelIndex &index, int role) const override
     {
         if (role != Qt::DisplayRole && role != Qt::EditRole)
             return {};
-        if (column == 0)
+        if (index.column() == 0)
             return value.id;
-        if (column == 1)
+        if (index.column() == 1)
             return value.label;
         return {};
     }
@@ -59,9 +59,9 @@ class SingleColumnStringModel : public BasicListModel<QString>
 public:
     using BasicListModel<QString>::BasicListModel;
 
-    QVariant data(const QString &value, int column, int role) const override
+    QVariant data(const QString &value, const QModelIndex &index, int role) const override
     {
-        if (column == 0 && (role == Qt::DisplayRole || role == Qt::EditRole))
+        if (index.column() == 0 && (role == Qt::DisplayRole || role == Qt::EditRole))
             return value;
         return {};
     }
@@ -169,9 +169,9 @@ TEST(BasicListModelHeadersCtor, EmptyHeadersListIsClampedToSingleColumn)
     {
     public:
         ClampedModel() : BasicListModel<QString>(QStringList{}) {}
-        QVariant data(const QString &value, int column, int role) const override
+        QVariant data(const QString &value, const QModelIndex &index, int role) const override
         {
-            if (column == 0 && (role == Qt::DisplayRole || role == Qt::EditRole))
+            if (index.column() == 0 && (role == Qt::DisplayRole || role == Qt::EditRole))
                 return value;
             return {};
         }

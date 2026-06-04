@@ -33,9 +33,9 @@ public:
     using BasicListModel<QString>::BasicListModel;
     using BasicListModel<QString>::data;
 
-    QVariant data(const QString &value, int column, int role) const override
+    QVariant data(const QString &value, const QModelIndex &index, int role) const override
     {
-        if (column != 0)
+        if (index.column() != 0)
             return {};
         if (role == Qt::DisplayRole || role == Qt::EditRole)
             return value;
@@ -60,9 +60,9 @@ public:
     using BasicListModel<Pod>::BasicListModel;
     using BasicListModel<Pod>::data;
 
-    QVariant data(const Pod &value, int column, int role) const override
+    QVariant data(const Pod &value, const QModelIndex &index, int role) const override
     {
-        if (column != 0)
+        if (index.column() != 0)
             return {};
         if (role == Qt::DisplayRole)
             return value.label;
@@ -76,9 +76,9 @@ public:
     using BasicListModel<QString>::BasicListModel;
     using BasicListModel<QString>::data;
 
-    QVariant data(const QString &value, int column, int role) const override
+    QVariant data(const QString &value, const QModelIndex &index, int role) const override
     {
-        if (column != 0)
+        if (index.column() != 0)
             return {};
         if (role == Qt::DisplayRole || role == Qt::EditRole)
             return value;
