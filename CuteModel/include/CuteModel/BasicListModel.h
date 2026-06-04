@@ -123,11 +123,7 @@ public:
             return true;
 
         if constexpr (std::is_default_constructible_v<T>) {
-            const int last = row + count - 1;
-            this->beginInsertRows(QModelIndex(), row, last);
-            m_items.insert(m_items.begin() + row,
-                           static_cast<std::size_t>(count), T());
-            this->endInsertRows();
+            insert_range(row, std::vector<T>(static_cast<std::size_t>(count), T()));
             return true;
         } else {
             std::terminate();
@@ -144,10 +140,7 @@ public:
         if (count == 0)
             return true;
 
-        const int last = row + count - 1;
-        this->beginRemoveRows(QModelIndex(), row, last);
-        m_items.erase(m_items.begin() + row, m_items.begin() + row + count);
-        this->endRemoveRows();
+        erase(row, row + count - 1);
         return true;
     }
 
