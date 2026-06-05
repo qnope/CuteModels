@@ -17,6 +17,7 @@ target_sources(CuteModel
             include/CuteModel/Exceptions.h
             include/CuteModel/BaseModel.h
             include/CuteModel/BasicListModel.h
+            include/CuteModel/Table.h
             include/CuteModel/BasicTableModel.h)
 
 target_compile_features(CuteModel PUBLIC cxx_std_17)
