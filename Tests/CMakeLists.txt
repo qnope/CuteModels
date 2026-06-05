@@ -14,6 +14,7 @@ target_sources(cutemodel_tests PRIVATE
     test_basic_list_model.cpp
     test_basic_list_model_columns.cpp
     test_basic_table_model.cpp
+    test_table.cpp
     test_range_list.cpp
     test_item_proxy.cpp)
 
