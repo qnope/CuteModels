@@ -7,6 +7,7 @@
 #include <QAbstractItemModel>
 #include <QAbstractItemModelTester>
 #include <QModelIndex>
+#include <QStringList>
 #include <QVariant>
 
 #include <memory>
@@ -166,6 +167,48 @@ TEST(ModelTraversalTest, IndexesMatchingFiltersByPredicate)
     EXPECT_EQ(matches[0].row(), 1);
     EXPECT_EQ(matches[1].row(), 3);
     EXPECT_EQ(valuesAt(model, matches), (std::vector<int>{20, 40}));
+}
+
+TEST(ModelTraversalTest, ColumnPolicyControlsVisitedColumns)
+{
+    IntListModel model(QStringList{QStringLiteral("a"), QStringLiteral("b")});
+    model.push_back(10);
+    model.push_back(20);
+    QAbstractItemModelTester tester(&model, Reporting::Fatal);
+
+    std::vector<int> allColumns;
+    cute::forEachIndex<int>(
+        model,
+        [&](const int &value, const QModelIndex &) { allColumns.push_back(value); },
+        cute::ColumnPolicy::AllColumns);
+    EXPECT_EQ(allColumns, (std::vector<int>{10, 10, 20, 20}));
+
+    std::vector<int> firstColumn;
+    cute::forEachIndex<int>(
+        model,
+        [&](const int &value, const QModelIndex &) { firstColumn.push_back(value); },
+        cute::ColumnPolicy::FirstColumnOnly);
+    EXPECT_EQ(firstColumn, (std::vector<int>{10, 20}));
+}
+
+TEST(ModelTraversalTest, IndexesMatchingHonoursColumnPolicy)
+{
+    IntListModel model(QStringList{QStringLiteral("a"), QStringLiteral("b")});
+    model.push_back(10);
+    model.push_back(20);
+    QAbstractItemModelTester tester(&model, Reporting::Fatal);
+
+    const auto allColumns = cute::indexesMatching<int>(
+        model, [](const int &value) { return value == 20; },
+        cute::ColumnPolicy::AllColumns);
+    EXPECT_EQ(allColumns.size(), 2u);
+
+    const auto firstColumn = cute::indexesMatching<int>(
+        model, [](const int &value) { return value == 20; },
+        cute::ColumnPolicy::FirstColumnOnly);
+    ASSERT_EQ(firstColumn.size(), 1u);
+    EXPECT_EQ(firstColumn[0].row(), 1);
+    EXPECT_EQ(firstColumn[0].column(), 0);
 }
 
 TEST(ModelTraversalTest, IndexesMatchingEmptyWhenNoneMatch)
