@@ -1,8 +1,11 @@
 #include "CuteModel/BasicListModel.h"
 #include "CuteModel/RefBase.h"
 #include "CuteModel/ValueRole.h"
+#include "common/NonDefault.h"
 
 #include <gtest/gtest.h>
+
+#include <stdexcept>
 
 #include <QAbstractItemModel>
 #include <QAbstractItemModelTester>
@@ -70,11 +73,7 @@ public:
     }
 };
 
-struct NonDefault
-{
-    explicit NonDefault(int v) : value(v) {}
-    int value;
-};
+using cute_tests::NonDefault;
 
 class NonDefaultListModel : public BasicListModel<NonDefault>
 {
@@ -677,12 +676,35 @@ TEST_F(BasicListModelTest, RemoveRowsZeroCountIsNoOp)
     EXPECT_EQ(model.size(), 1);
 }
 
-TEST(BasicListModelNonDefaultTest, InsertRowsTerminatesWithoutDefaultConstructor)
+TEST(BasicListModelNonDefaultTest, InsertRowsReturnsFalseWithoutDefaultConstructor)
 {
     NonDefaultListModel model;
+    QAbstractItemModelTester tester{&model,
+        QAbstractItemModelTester::FailureReportingMode::Fatal};
     model.push_back(NonDefault{1});
 
-    EXPECT_DEATH({ (void)model.insertRows(0, 1); }, "");
+    QSignalSpy insertedSpy(&model, &QAbstractItemModel::rowsInserted);
+
+    EXPECT_FALSE(model.insertRows(0, 1));
+    EXPECT_FALSE(model.insertRows(0, 3));
+    EXPECT_FALSE(model.insertRows(1, 1));
+
+    EXPECT_EQ(insertedSpy.count(), 0);
+    EXPECT_EQ(model.size(), 1);
+}
+
+TEST(BasicListModelNonDefaultTest, InsertRowsZeroCountSucceedsWithoutDefaultConstructor)
+{
+    NonDefaultListModel model;
+    QAbstractItemModelTester tester{&model,
+        QAbstractItemModelTester::FailureReportingMode::Fatal};
+    model.push_back(NonDefault{1});
+
+    QSignalSpy insertedSpy(&model, &QAbstractItemModel::rowsInserted);
+
+    EXPECT_TRUE(model.insertRows(0, 0));
+    EXPECT_EQ(insertedSpy.count(), 0);
+    EXPECT_EQ(model.size(), 1);
 }
 
 TEST_F(BasicListModelTest, EraseEmitsRowsRemoved)
@@ -956,13 +978,52 @@ TEST_F(BasicListModelTest, IterMutFullRangeDefaultArgs)
               model.index(model.size() - 1, model.columnCount() - 1));
 }
 
-TEST_F(BasicListModelTest, IterMutOutOfRangeTerminates)
+TEST_F(BasicListModelTest, IterMutOutOfRangeThrows)
 {
     model.push_back(QStringLiteral("a"));
 
-    EXPECT_DEATH({ (void)model.iter_mut(0, 99); }, "");
-    EXPECT_DEATH({ (void)model.iter_mut(-1, 1); }, "");
-    EXPECT_DEATH({ (void)model.iter_mut(0, -1); }, "");
+    EXPECT_THROW({ (void)model.iter_mut(0, 99); }, std::out_of_range);
+    EXPECT_THROW({ (void)model.iter_mut(-1, 1); }, std::out_of_range);
+    EXPECT_THROW({ (void)model.iter_mut(0, -1); }, std::out_of_range);
+    EXPECT_THROW({ (void)model.iter_mut(2, 0); }, std::out_of_range);
+    EXPECT_THROW({ (void)model.iter_mut(1, 1); }, std::out_of_range);
+}
+
+TEST_F(BasicListModelTest, IterConstOutOfRangeThrows)
+{
+    model.push_back(QStringLiteral("a"));
+    model.push_back(QStringLiteral("b"));
+
+    EXPECT_THROW({ (void)model.iter(0, 99); }, std::out_of_range);
+    EXPECT_THROW({ (void)model.iter(-1, 1); }, std::out_of_range);
+    EXPECT_THROW({ (void)model.iter(0, -1); }, std::out_of_range);
+    EXPECT_THROW({ (void)model.iter(3, 0); }, std::out_of_range);
+    EXPECT_THROW({ (void)model.iter(1, 2); }, std::out_of_range);
+}
+
+TEST_F(BasicListModelTest, IterConstValidBoundsReturnsRange)
+{
+    model.push_back(QStringLiteral("a"));
+    model.push_back(QStringLiteral("b"));
+    model.push_back(QStringLiteral("c"));
+
+    {
+        auto range = model.iter(0, 3);
+        EXPECT_EQ(range.size(), 3);
+        EXPECT_FALSE(range.empty());
+    }
+    {
+        auto range = model.iter(1, 2);
+        EXPECT_EQ(range.size(), 2);
+    }
+    {
+        auto range = model.iter(0, 0);
+        EXPECT_TRUE(range.empty());
+    }
+    {
+        auto range = model.iter(model.size(), 0);
+        EXPECT_TRUE(range.empty());
+    }
 }
 
 TEST_F(PodListModelTest, RefGetValueReadsPodFromValueRole)
@@ -1031,18 +1092,21 @@ TEST_F(BasicListModelTest, DataChangedEmitsEmptyRolesList)
     EXPECT_TRUE(args.at(2).value<QList<int>>().isEmpty());
 }
 
-TEST_F(BasicListModelTest, SetDataWithUnsupportedRoleTerminates)
+TEST_F(BasicListModelTest, SetDataWithUnsupportedRoleReturnsFalse)
 {
     model.push_back(QStringLiteral("a"));
 
-    EXPECT_DEATH(
-        { (void)model.setData(model.index(0, 0), QStringLiteral("x"), Qt::DisplayRole); },
-        "");
-    EXPECT_DEATH(
-        { (void)model.setData(model.index(0, 0), QStringLiteral("x"), Qt::EditRole); }, "");
-    EXPECT_DEATH(
-        { (void)model.setData(model.index(0, 0), QStringLiteral("x"), Qt::UserRole + 5); },
-        "");
+    QSignalSpy changedSpy(&model, &QAbstractItemModel::dataChanged);
+
+    EXPECT_FALSE(model.setData(model.index(0, 0),
+                               QStringLiteral("x"), Qt::DisplayRole));
+    EXPECT_FALSE(model.setData(model.index(0, 0),
+                               QStringLiteral("x"), Qt::EditRole));
+    EXPECT_FALSE(model.setData(model.index(0, 0),
+                               QStringLiteral("x"), Qt::UserRole + 5));
+
+    EXPECT_EQ(changedSpy.count(), 0);
+    EXPECT_EQ(*model.at(0), QStringLiteral("a"));
 }
 
 TEST_F(DroppingListModelTest, MimeDataForSingleIndexReadsValue)

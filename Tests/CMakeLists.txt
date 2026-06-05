@@ -13,7 +13,11 @@ target_sources(cutemodel_tests PRIVATE
     test_base_model.cpp
     test_basic_list_model.cpp
     test_basic_list_model_columns.cpp
-    test_basic_table_model.cpp)
+    test_basic_table_model.cpp
+    test_range_list.cpp
+    test_item_proxy.cpp)
+
+target_include_directories(cutemodel_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
 target_link_libraries(cutemodel_tests PRIVATE
     CuteModel::CuteModel

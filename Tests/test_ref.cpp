@@ -1,4 +1,5 @@
 #include "CuteModel/BasicListModel.h"
+#include "CuteModel/Exceptions.h"
 #include "CuteModel/RefBase.h"
 #include "CuteModel/ValueRole.h"
 
@@ -168,4 +169,78 @@ TEST(GetRef, ConstructsTypedRef)
     ASSERT_NE(ref, nullptr);
     EXPECT_EQ(ref->getValue(), QStringLiteral("world"));
     EXPECT_EQ(ref->parent(), nullptr);
+}
+
+TEST(Ref, GetValueThrowsAfterRowRemoved)
+{
+    auto model = makeModel(QStringLiteral("a"));
+
+    auto ref = model->getRef<>(model->index(0, 0));
+    ASSERT_NE(ref, nullptr);
+
+    QSignalSpy destroyedSpy(ref.get(), &cute::RefBase::underlyingValueDestroyed);
+    model->erase(0);
+    EXPECT_EQ(destroyedSpy.count(), 1);
+
+    EXPECT_THROW(ref->getValue(), cute::NullObjectException);
+}
+
+TEST(Ref, SetValueThrowsAfterRowRemoved)
+{
+    auto model = makeModel(QStringLiteral("a"));
+
+    auto ref = model->getRef<>(model->index(0, 0));
+    ASSERT_NE(ref, nullptr);
+
+    model->erase(0);
+
+    EXPECT_THROW(ref->setValue(QStringLiteral("b")), cute::NullObjectException);
+}
+
+TEST(Ref, GetValueThrowsAfterModelReset)
+{
+    auto model = makeModel(QStringLiteral("a"));
+
+    auto ref = model->getRef<>(model->index(0, 0));
+    ASSERT_NE(ref, nullptr);
+
+    model->clear();
+
+    EXPECT_THROW(ref->getValue(), cute::NullObjectException);
+}
+
+TEST(Ref, SetValueThrowsAfterModelReset)
+{
+    auto model = makeModel(QStringLiteral("a"));
+
+    auto ref = model->getRef<>(model->index(0, 0));
+    ASSERT_NE(ref, nullptr);
+
+    model->clear();
+
+    EXPECT_THROW(ref->setValue(QStringLiteral("b")), cute::NullObjectException);
+}
+
+TEST(Ref, GetValueThrowsAfterModelDestroyed)
+{
+    auto model = makeModel(QStringLiteral("a"));
+
+    auto ref = model->getRef<>(model->index(0, 0));
+    ASSERT_NE(ref, nullptr);
+
+    model.reset();
+
+    EXPECT_THROW(ref->getValue(), cute::NullObjectException);
+}
+
+TEST(Ref, SetValueThrowsAfterModelDestroyed)
+{
+    auto model = makeModel(QStringLiteral("a"));
+
+    auto ref = model->getRef<>(model->index(0, 0));
+    ASSERT_NE(ref, nullptr);
+
+    model.reset();
+
+    EXPECT_THROW(ref->setValue(QStringLiteral("b")), cute::NullObjectException);
 }

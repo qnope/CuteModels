@@ -1,5 +1,6 @@
 #include "CuteModel/BasicTableModel.h"
 #include "CuteModel/ValueRole.h"
+#include "common/NonDefault.h"
 
 #include <gtest/gtest.h>
 
@@ -1024,4 +1025,604 @@ TEST_F(IntTableModelTest, GetRefTracksCellValue)
 
     EXPECT_EQ(valueChangedSpy.count(), 1);
     EXPECT_EQ(ref->getValue(), 2);
+}
+
+// ===========================================================================
+// Auto-padding behavior: insert_range_row / insert_range_column / reset with
+// non-rectangular inputs, plus non-default-constructible T short-circuits.
+// ===========================================================================
+
+namespace {
+
+using cute_tests::NonDefault;
+
+class NonDefaultTableModel : public BasicTableModel<NonDefault>
+{
+public:
+    using BasicTableModel<NonDefault>::BasicTableModel;
+    using BasicTableModel<NonDefault>::data;
+
+    QVariant data(const NonDefault &value, const QModelIndex &, int role) const override
+    {
+        if (role == Qt::DisplayRole)
+            return value.value;
+        return {};
+    }
+};
+
+std::vector<std::vector<NonDefault>> nonDefaultRows(
+    std::initializer_list<std::initializer_list<int>> rows)
+{
+    std::vector<std::vector<NonDefault>> out;
+    out.reserve(rows.size());
+    for (const auto &row : rows) {
+        std::vector<NonDefault> r;
+        r.reserve(row.size());
+        for (int v : row)
+            r.emplace_back(v);
+        out.push_back(std::move(r));
+    }
+    return out;
+}
+
+}
+
+// ----- A. Overrides Qt sur T non default-constructible -----
+
+TEST(NonDefaultTableModel, InsertRowsReturnsFalseWithoutDefaultCtor)
+{
+    NonDefaultTableModel model;
+    QAbstractItemModelTester guard{&model,
+        QAbstractItemModelTester::FailureReportingMode::Fatal};
+
+    QSignalSpy insertedSpy(&model, &QAbstractItemModel::rowsInserted);
+
+    EXPECT_FALSE(model.insertRows(0, 1));
+    EXPECT_EQ(insertedSpy.count(), 0);
+    EXPECT_EQ(model.rowCount(), 0);
+}
+
+TEST(NonDefaultTableModel, InsertRowsZeroCountStillSucceeds)
+{
+    NonDefaultTableModel model;
+    QAbstractItemModelTester guard{&model,
+        QAbstractItemModelTester::FailureReportingMode::Fatal};
+
+    QSignalSpy insertedSpy(&model, &QAbstractItemModel::rowsInserted);
+
+    EXPECT_TRUE(model.insertRows(0, 0));
+    EXPECT_EQ(insertedSpy.count(), 0);
+}
+
+TEST(NonDefaultTableModel, InsertColumnsReturnsFalseWithoutDefaultCtor)
+{
+    NonDefaultTableModel model;
+    QAbstractItemModelTester guard{&model,
+        QAbstractItemModelTester::FailureReportingMode::Fatal};
+    model.reset(nonDefaultRows({{1, 2}}));
+
+    QSignalSpy insertedSpy(&model, &QAbstractItemModel::columnsInserted);
+
+    EXPECT_FALSE(model.insertColumns(0, 1));
+    EXPECT_EQ(insertedSpy.count(), 0);
+    EXPECT_EQ(model.columnCount(), 2);
+}
+
+TEST(NonDefaultTableModel, InsertColumnsZeroCountStillSucceeds)
+{
+    NonDefaultTableModel model;
+    QAbstractItemModelTester guard{&model,
+        QAbstractItemModelTester::FailureReportingMode::Fatal};
+
+    EXPECT_TRUE(model.insertColumns(0, 0));
+}
+
+TEST_F(IntTableModelTest, InsertRowsSucceedsForDefaultConstructibleT)
+{
+    model.reset(std::vector<std::vector<int>>{{1, 2, 3}, {4, 5, 6}});
+
+    QSignalSpy insertedSpy(&model, &QAbstractItemModel::rowsInserted);
+
+    EXPECT_TRUE(model.insertRows(0, 2));
+    EXPECT_EQ(insertedSpy.count(), 1);
+    EXPECT_EQ(model.rowCount(), 4);
+    EXPECT_EQ(model.index(0, 0).data(ValueRole).toInt(), 0);
+    EXPECT_EQ(model.index(1, 0).data(ValueRole).toInt(), 0);
+    EXPECT_EQ(model.index(2, 0).data(ValueRole).toInt(), 1);
+}
+
+TEST_F(IntTableModelTest, InsertColumnsSucceedsForDefaultConstructibleT)
+{
+    model.reset(std::vector<std::vector<int>>{{1, 2}, {3, 4}});
+
+    QSignalSpy insertedSpy(&model, &QAbstractItemModel::columnsInserted);
+
+    EXPECT_TRUE(model.insertColumns(0, 2));
+    EXPECT_EQ(insertedSpy.count(), 1);
+    EXPECT_EQ(model.columnCount(), 4);
+    EXPECT_EQ(model.index(0, 0).data(ValueRole).toInt(), 0);
+    EXPECT_EQ(model.index(0, 1).data(ValueRole).toInt(), 0);
+    EXPECT_EQ(model.index(0, 2).data(ValueRole).toInt(), 1);
+}
+
+// ----- B. insert_range_row — agrandissement (incoming WIDER que table) -----
+
+TEST_F(IntTableModelTest, InsertRangeRowWiderThanTableExtendsColumns)
+{
+    model.reset(std::vector<std::vector<int>>{{1, 2, 3}, {4, 5, 6}});
+
+    QSignalSpy colsAboutSpy(&model, &QAbstractItemModel::columnsAboutToBeInserted);
+    QSignalSpy colsSpy(&model, &QAbstractItemModel::columnsInserted);
+    QSignalSpy rowsAboutSpy(&model, &QAbstractItemModel::rowsAboutToBeInserted);
+    QSignalSpy rowsSpy(&model, &QAbstractItemModel::rowsInserted);
+
+    EXPECT_TRUE(model.insert_range_row(1,
+        std::vector<std::vector<int>>{{7, 8, 9, 10, 11}}));
+
+    EXPECT_EQ(model.rowCount(), 3);
+    EXPECT_EQ(model.columnCount(), 5);
+    ASSERT_EQ(colsSpy.count(), 1);
+    EXPECT_EQ(colsAboutSpy.count(), 1);
+    EXPECT_EQ(colsSpy.at(0).at(1).toInt(), 3);
+    EXPECT_EQ(colsSpy.at(0).at(2).toInt(), 4);
+    ASSERT_EQ(rowsSpy.count(), 1);
+    EXPECT_EQ(rowsAboutSpy.count(), 1);
+    EXPECT_EQ(rowsSpy.at(0).at(1).toInt(), 1);
+    EXPECT_EQ(rowsSpy.at(0).at(2).toInt(), 1);
+
+    // Existing rows padded with 0 in new columns.
+    EXPECT_EQ(model.index(0, 3).data(ValueRole).toInt(), 0);
+    EXPECT_EQ(model.index(0, 4).data(ValueRole).toInt(), 0);
+    EXPECT_EQ(model.index(2, 3).data(ValueRole).toInt(), 0);
+    EXPECT_EQ(model.index(2, 4).data(ValueRole).toInt(), 0);
+    // New row carries provided values.
+    EXPECT_EQ(model.index(1, 0).data(ValueRole).toInt(), 7);
+    EXPECT_EQ(model.index(1, 4).data(ValueRole).toInt(), 11);
+}
+
+TEST_F(IntTableModelTest, InsertRangeRowMultipleWiderRowsExtendsColumnsOnce)
+{
+    model.reset(std::vector<std::vector<int>>{{1, 2, 3}, {4, 5, 6}});
+
+    QSignalSpy colsSpy(&model, &QAbstractItemModel::columnsInserted);
+    QSignalSpy rowsSpy(&model, &QAbstractItemModel::rowsInserted);
+
+    EXPECT_TRUE(model.insert_range_row(0,
+        std::vector<std::vector<int>>{{7, 8, 9, 10, 11}, {12, 13, 14, 15, 16}}));
+
+    EXPECT_EQ(colsSpy.count(), 1);
+    EXPECT_EQ(rowsSpy.count(), 1);
+    EXPECT_EQ(model.rowCount(), 4);
+    EXPECT_EQ(model.columnCount(), 5);
+}
+
+TEST_F(IntTableModelTest, InsertRangeRowOnEmptyTableEstablishesColumns)
+{
+    QSignalSpy colsSpy(&model, &QAbstractItemModel::columnsInserted);
+    QSignalSpy rowsSpy(&model, &QAbstractItemModel::rowsInserted);
+
+    EXPECT_TRUE(model.insert_range_row(0,
+        std::vector<std::vector<int>>{{1, 2, 3, 4}}));
+
+    EXPECT_EQ(model.rowCount(), 1);
+    EXPECT_EQ(model.columnCount(), 4);
+    ASSERT_EQ(colsSpy.count(), 1);
+    EXPECT_EQ(colsSpy.at(0).at(1).toInt(), 0);
+    EXPECT_EQ(colsSpy.at(0).at(2).toInt(), 3);
+    ASSERT_EQ(rowsSpy.count(), 1);
+}
+
+TEST(NonDefaultTableModel, InsertRangeRowWiderThanTableReturnsFalse)
+{
+    NonDefaultTableModel model;
+    QAbstractItemModelTester guard{&model,
+        QAbstractItemModelTester::FailureReportingMode::Fatal};
+    EXPECT_TRUE(model.reset(nonDefaultRows({{1, 2, 3}, {4, 5, 6}})));
+
+    QSignalSpy colsSpy(&model, &QAbstractItemModel::columnsInserted);
+    QSignalSpy rowsSpy(&model, &QAbstractItemModel::rowsInserted);
+
+    EXPECT_FALSE(model.insert_range_row(1, nonDefaultRows({{7, 8, 9, 10, 11}})));
+
+    EXPECT_EQ(colsSpy.count(), 0);
+    EXPECT_EQ(rowsSpy.count(), 0);
+    EXPECT_EQ(model.rowCount(), 2);
+    EXPECT_EQ(model.columnCount(), 3);
+}
+
+// ----- C. insert_range_row — réduction (incoming NARROWER que table) -----
+
+TEST_F(IntTableModelTest, InsertRangeRowNarrowerPadsIncoming)
+{
+    model.reset(std::vector<std::vector<int>>{{1, 2, 3}, {4, 5, 6}});
+
+    QSignalSpy colsSpy(&model, &QAbstractItemModel::columnsInserted);
+    QSignalSpy rowsSpy(&model, &QAbstractItemModel::rowsInserted);
+
+    EXPECT_TRUE(model.insert_range_row(1, std::vector<std::vector<int>>{{7, 8}}));
+
+    EXPECT_EQ(colsSpy.count(), 0);
+    ASSERT_EQ(rowsSpy.count(), 1);
+    EXPECT_EQ(model.rowCount(), 3);
+    EXPECT_EQ(model.columnCount(), 3);
+    EXPECT_EQ(model.index(1, 0).data(ValueRole).toInt(), 7);
+    EXPECT_EQ(model.index(1, 1).data(ValueRole).toInt(), 8);
+    EXPECT_EQ(model.index(1, 2).data(ValueRole).toInt(), 0);
+}
+
+TEST_F(IntTableModelTest, InsertRangeRowMixedNarrowerWidthsPadsEach)
+{
+    model.reset(std::vector<std::vector<int>>{{1, 2, 3}, {4, 5, 6}});
+
+    EXPECT_TRUE(model.insert_range_row(2,
+        std::vector<std::vector<int>>{{7, 8}, {9}}));
+
+    EXPECT_EQ(model.rowCount(), 4);
+    EXPECT_EQ(model.columnCount(), 3);
+    EXPECT_EQ(model.index(2, 0).data(ValueRole).toInt(), 7);
+    EXPECT_EQ(model.index(2, 1).data(ValueRole).toInt(), 8);
+    EXPECT_EQ(model.index(2, 2).data(ValueRole).toInt(), 0);
+    EXPECT_EQ(model.index(3, 0).data(ValueRole).toInt(), 9);
+    EXPECT_EQ(model.index(3, 1).data(ValueRole).toInt(), 0);
+    EXPECT_EQ(model.index(3, 2).data(ValueRole).toInt(), 0);
+}
+
+TEST(NonDefaultTableModel, InsertRangeRowNarrowerReturnsFalse)
+{
+    NonDefaultTableModel model;
+    QAbstractItemModelTester guard{&model,
+        QAbstractItemModelTester::FailureReportingMode::Fatal};
+    EXPECT_TRUE(model.reset(nonDefaultRows({{1, 2, 3}, {4, 5, 6}})));
+
+    QSignalSpy rowsSpy(&model, &QAbstractItemModel::rowsInserted);
+
+    EXPECT_FALSE(model.insert_range_row(1, nonDefaultRows({{7, 8}})));
+
+    EXPECT_EQ(rowsSpy.count(), 0);
+    EXPECT_EQ(model.rowCount(), 2);
+}
+
+// ----- D. insert_range_row — incoming NON RECTANGULAIRE -----
+
+TEST_F(IntTableModelTest, InsertRangeRowNonRectangularExtendsAndPads)
+{
+    model.reset(std::vector<std::vector<int>>{{1, 2, 3}, {4, 5, 6}});
+
+    QSignalSpy colsSpy(&model, &QAbstractItemModel::columnsInserted);
+    QSignalSpy rowsSpy(&model, &QAbstractItemModel::rowsInserted);
+
+    EXPECT_TRUE(model.insert_range_row(2,
+        std::vector<std::vector<int>>{{10, 20, 30, 40}, {50, 60}}));
+
+    ASSERT_EQ(colsSpy.count(), 1);
+    EXPECT_EQ(colsSpy.at(0).at(1).toInt(), 3);
+    EXPECT_EQ(colsSpy.at(0).at(2).toInt(), 3);
+    ASSERT_EQ(rowsSpy.count(), 1);
+    EXPECT_EQ(model.rowCount(), 4);
+    EXPECT_EQ(model.columnCount(), 4);
+
+    // Existing rows padded.
+    EXPECT_EQ(model.index(0, 3).data(ValueRole).toInt(), 0);
+    EXPECT_EQ(model.index(1, 3).data(ValueRole).toInt(), 0);
+    // First new row keeps its values.
+    EXPECT_EQ(model.index(2, 0).data(ValueRole).toInt(), 10);
+    EXPECT_EQ(model.index(2, 3).data(ValueRole).toInt(), 40);
+    // Second new row padded with 0s.
+    EXPECT_EQ(model.index(3, 0).data(ValueRole).toInt(), 50);
+    EXPECT_EQ(model.index(3, 1).data(ValueRole).toInt(), 60);
+    EXPECT_EQ(model.index(3, 2).data(ValueRole).toInt(), 0);
+    EXPECT_EQ(model.index(3, 3).data(ValueRole).toInt(), 0);
+}
+
+TEST(NonDefaultTableModel, InsertRangeRowNonRectangularReturnsFalse)
+{
+    NonDefaultTableModel model;
+    QAbstractItemModelTester guard{&model,
+        QAbstractItemModelTester::FailureReportingMode::Fatal};
+    EXPECT_TRUE(model.reset(nonDefaultRows({{1, 2, 3}, {4, 5, 6}})));
+
+    QSignalSpy colsSpy(&model, &QAbstractItemModel::columnsInserted);
+    QSignalSpy rowsSpy(&model, &QAbstractItemModel::rowsInserted);
+
+    EXPECT_FALSE(model.insert_range_row(2,
+        nonDefaultRows({{10, 20, 30, 40}, {50, 60}})));
+
+    EXPECT_EQ(colsSpy.count(), 0);
+    EXPECT_EQ(rowsSpy.count(), 0);
+}
+
+// ----- E. Cas dégénérés -----
+
+TEST_F(IntTableModelTest, InsertRangeRowEmptyVectorReturnsFalse)
+{
+    model.reset(std::vector<std::vector<int>>{{1, 2}});
+    QSignalSpy rowsSpy(&model, &QAbstractItemModel::rowsInserted);
+    EXPECT_FALSE(model.insert_range_row(0, std::vector<std::vector<int>>{}));
+    EXPECT_EQ(rowsSpy.count(), 0);
+}
+
+TEST_F(IntTableModelTest, InsertRangeRowOutOfBoundsRow)
+{
+    model.reset(std::vector<std::vector<int>>{{1, 2}});
+    EXPECT_FALSE(model.insert_range_row(-1, std::vector<std::vector<int>>{{3, 4}}));
+    EXPECT_FALSE(model.insert_range_row(99, std::vector<std::vector<int>>{{3, 4}}));
+    EXPECT_EQ(model.rowCount(), 1);
+}
+
+// ----- F. append_range_row variantes -----
+
+TEST_F(IntTableModelTest, AppendRangeRowSingleVectorReturnsBool)
+{
+    model.reset(std::vector<std::vector<int>>{{1, 2, 3}});
+    EXPECT_TRUE(model.append_range_row(std::vector<int>{4, 5, 6}));
+    EXPECT_EQ(model.rowCount(), 2);
+    EXPECT_EQ(model.columnCount(), 3);
+}
+
+TEST_F(IntTableModelTest, AppendRangeRowWiderExtendsTable)
+{
+    model.reset(std::vector<std::vector<int>>{{1, 2, 3}});
+    EXPECT_TRUE(model.append_range_row(std::vector<int>{4, 5, 6, 7, 8}));
+    EXPECT_EQ(model.columnCount(), 5);
+    EXPECT_EQ(model.index(0, 4).data(ValueRole).toInt(), 0);
+    EXPECT_EQ(model.index(1, 4).data(ValueRole).toInt(), 8);
+}
+
+TEST_F(IntTableModelTest, AppendRangeRowNarrowerPads)
+{
+    model.reset(std::vector<std::vector<int>>{{1, 2, 3}});
+    EXPECT_TRUE(model.append_range_row(std::vector<int>{9}));
+    EXPECT_EQ(model.index(1, 0).data(ValueRole).toInt(), 9);
+    EXPECT_EQ(model.index(1, 1).data(ValueRole).toInt(), 0);
+    EXPECT_EQ(model.index(1, 2).data(ValueRole).toInt(), 0);
+}
+
+// ----- H. insert_range_column — agrandissement (incoming TALLER que table) -----
+
+TEST_F(IntTableModelTest, InsertRangeColumnTallerExtendsRows)
+{
+    model.reset(std::vector<std::vector<int>>{{1, 2, 3}, {4, 5, 6}});
+
+    QSignalSpy rowsAboutSpy(&model, &QAbstractItemModel::rowsAboutToBeInserted);
+    QSignalSpy rowsSpy(&model, &QAbstractItemModel::rowsInserted);
+    QSignalSpy colsAboutSpy(&model, &QAbstractItemModel::columnsAboutToBeInserted);
+    QSignalSpy colsSpy(&model, &QAbstractItemModel::columnsInserted);
+
+    EXPECT_TRUE(model.insert_range_column(1,
+        std::vector<std::vector<int>>{{7, 8, 9, 10}}));
+
+    EXPECT_EQ(model.rowCount(), 4);
+    EXPECT_EQ(model.columnCount(), 4);
+    ASSERT_EQ(rowsSpy.count(), 1);
+    EXPECT_EQ(rowsAboutSpy.count(), 1);
+    EXPECT_EQ(rowsSpy.at(0).at(1).toInt(), 2);
+    EXPECT_EQ(rowsSpy.at(0).at(2).toInt(), 3);
+    ASSERT_EQ(colsSpy.count(), 1);
+    EXPECT_EQ(colsAboutSpy.count(), 1);
+    EXPECT_EQ(colsSpy.at(0).at(1).toInt(), 1);
+    EXPECT_EQ(colsSpy.at(0).at(2).toInt(), 1);
+
+    // New rows fully default-constructed except in the new column.
+    EXPECT_EQ(model.index(2, 0).data(ValueRole).toInt(), 0);
+    EXPECT_EQ(model.index(3, 3).data(ValueRole).toInt(), 0);
+    // New column carries values across all rows (4 rows total).
+    EXPECT_EQ(model.index(0, 1).data(ValueRole).toInt(), 7);
+    EXPECT_EQ(model.index(1, 1).data(ValueRole).toInt(), 8);
+    EXPECT_EQ(model.index(2, 1).data(ValueRole).toInt(), 9);
+    EXPECT_EQ(model.index(3, 1).data(ValueRole).toInt(), 10);
+}
+
+TEST(NonDefaultTableModel, InsertRangeColumnTallerReturnsFalse)
+{
+    NonDefaultTableModel model;
+    QAbstractItemModelTester guard{&model,
+        QAbstractItemModelTester::FailureReportingMode::Fatal};
+    EXPECT_TRUE(model.reset(nonDefaultRows({{1, 2, 3}, {4, 5, 6}})));
+
+    QSignalSpy rowsSpy(&model, &QAbstractItemModel::rowsInserted);
+    QSignalSpy colsSpy(&model, &QAbstractItemModel::columnsInserted);
+
+    EXPECT_FALSE(model.insert_range_column(1, nonDefaultRows({{7, 8, 9, 10}})));
+
+    EXPECT_EQ(rowsSpy.count(), 0);
+    EXPECT_EQ(colsSpy.count(), 0);
+}
+
+// ----- I. insert_range_column — réduction (incoming SHORTER que table) -----
+
+TEST_F(IntTableModelTest, InsertRangeColumnShorterPadsIncoming)
+{
+    model.reset(std::vector<std::vector<int>>{
+        {1, 2, 3}, {4, 5, 6}, {7, 8, 9}, {10, 11, 12}});
+
+    QSignalSpy rowsSpy(&model, &QAbstractItemModel::rowsInserted);
+    QSignalSpy colsSpy(&model, &QAbstractItemModel::columnsInserted);
+
+    EXPECT_TRUE(model.insert_range_column(1,
+        std::vector<std::vector<int>>{{99, 88}}));
+
+    EXPECT_EQ(rowsSpy.count(), 0);
+    ASSERT_EQ(colsSpy.count(), 1);
+    EXPECT_EQ(model.rowCount(), 4);
+    EXPECT_EQ(model.columnCount(), 4);
+    EXPECT_EQ(model.index(0, 1).data(ValueRole).toInt(), 99);
+    EXPECT_EQ(model.index(1, 1).data(ValueRole).toInt(), 88);
+    EXPECT_EQ(model.index(2, 1).data(ValueRole).toInt(), 0);
+    EXPECT_EQ(model.index(3, 1).data(ValueRole).toInt(), 0);
+}
+
+TEST(NonDefaultTableModel, InsertRangeColumnShorterReturnsFalse)
+{
+    NonDefaultTableModel model;
+    QAbstractItemModelTester guard{&model,
+        QAbstractItemModelTester::FailureReportingMode::Fatal};
+    EXPECT_TRUE(model.reset(nonDefaultRows(
+        {{1, 2, 3}, {4, 5, 6}, {7, 8, 9}, {10, 11, 12}})));
+
+    EXPECT_FALSE(model.insert_range_column(1, nonDefaultRows({{99, 88}})));
+    EXPECT_EQ(model.columnCount(), 3);
+}
+
+// ----- J. insert_range_column — non rectangulaire -----
+
+TEST_F(IntTableModelTest, InsertRangeColumnNonRectangularExtendsAndPads)
+{
+    model.reset(std::vector<std::vector<int>>{{1, 2}, {3, 4}});
+
+    QSignalSpy rowsSpy(&model, &QAbstractItemModel::rowsInserted);
+    QSignalSpy colsSpy(&model, &QAbstractItemModel::columnsInserted);
+
+    EXPECT_TRUE(model.insert_range_column(0,
+        std::vector<std::vector<int>>{{10, 20, 30}, {40}}));
+
+    EXPECT_EQ(rowsSpy.count(), 1);
+    EXPECT_EQ(colsSpy.count(), 1);
+    EXPECT_EQ(model.rowCount(), 3);
+    EXPECT_EQ(model.columnCount(), 4);
+
+    // Existing row 0 keeps {1,2} in shifted columns; row 0 column 2,3 is shifted-original.
+    EXPECT_EQ(model.index(0, 2).data(ValueRole).toInt(), 1);
+    EXPECT_EQ(model.index(0, 3).data(ValueRole).toInt(), 2);
+    // First new column carries {10,20,30}.
+    EXPECT_EQ(model.index(0, 0).data(ValueRole).toInt(), 10);
+    EXPECT_EQ(model.index(1, 0).data(ValueRole).toInt(), 20);
+    EXPECT_EQ(model.index(2, 0).data(ValueRole).toInt(), 30);
+    // Second new column carries {40, padding, padding}.
+    EXPECT_EQ(model.index(0, 1).data(ValueRole).toInt(), 40);
+    EXPECT_EQ(model.index(1, 1).data(ValueRole).toInt(), 0);
+    EXPECT_EQ(model.index(2, 1).data(ValueRole).toInt(), 0);
+    // Padded row (row 2) of the original columns is 0.
+    EXPECT_EQ(model.index(2, 2).data(ValueRole).toInt(), 0);
+    EXPECT_EQ(model.index(2, 3).data(ValueRole).toInt(), 0);
+}
+
+TEST(NonDefaultTableModel, InsertRangeColumnNonRectangularReturnsFalse)
+{
+    NonDefaultTableModel model;
+    QAbstractItemModelTester guard{&model,
+        QAbstractItemModelTester::FailureReportingMode::Fatal};
+    EXPECT_TRUE(model.reset(nonDefaultRows({{1, 2}, {3, 4}})));
+
+    EXPECT_FALSE(model.insert_range_column(0,
+        nonDefaultRows({{10, 20, 30}, {40}})));
+}
+
+// ----- K. reset exhaustif -----
+
+TEST_F(IntTableModelTest, ResetEmptyProducesZeroByZero)
+{
+    model.reset(std::vector<std::vector<int>>{{1, 2, 3}});
+
+    QSignalSpy resetSpy(&model, &QAbstractItemModel::modelReset);
+    EXPECT_TRUE(model.reset({}));
+
+    EXPECT_EQ(resetSpy.count(), 1);
+    EXPECT_EQ(model.rowCount(), 0);
+    EXPECT_EQ(model.columnCount(), 0);
+}
+
+TEST_F(IntTableModelTest, ResetRectangular)
+{
+    QSignalSpy resetSpy(&model, &QAbstractItemModel::modelReset);
+    EXPECT_TRUE(model.reset(std::vector<std::vector<int>>{{1, 2, 3}, {4, 5, 6}}));
+
+    EXPECT_EQ(resetSpy.count(), 1);
+    EXPECT_EQ(model.rowCount(), 2);
+    EXPECT_EQ(model.columnCount(), 3);
+}
+
+TEST_F(IntTableModelTest, ResetNonRectangularPadsToMaxWidth)
+{
+    QSignalSpy resetSpy(&model, &QAbstractItemModel::modelReset);
+    EXPECT_TRUE(model.reset(std::vector<std::vector<int>>{{1, 2}, {3, 4, 5}}));
+
+    EXPECT_EQ(resetSpy.count(), 1);
+    EXPECT_EQ(model.rowCount(), 2);
+    EXPECT_EQ(model.columnCount(), 3);
+    EXPECT_EQ(model.index(0, 0).data(ValueRole).toInt(), 1);
+    EXPECT_EQ(model.index(0, 1).data(ValueRole).toInt(), 2);
+    EXPECT_EQ(model.index(0, 2).data(ValueRole).toInt(), 0);
+    EXPECT_EQ(model.index(1, 0).data(ValueRole).toInt(), 3);
+    EXPECT_EQ(model.index(1, 1).data(ValueRole).toInt(), 4);
+    EXPECT_EQ(model.index(1, 2).data(ValueRole).toInt(), 5);
+}
+
+TEST_F(IntTableModelTest, ResetMixedWidePadsToMaxWidth)
+{
+    EXPECT_TRUE(model.reset(std::vector<std::vector<int>>{{1, 2, 3, 4, 5}, {6}}));
+
+    EXPECT_EQ(model.rowCount(), 2);
+    EXPECT_EQ(model.columnCount(), 5);
+    EXPECT_EQ(model.index(1, 0).data(ValueRole).toInt(), 6);
+    EXPECT_EQ(model.index(1, 4).data(ValueRole).toInt(), 0);
+}
+
+TEST(NonDefaultTableModel, ResetNonRectangularReturnsFalse)
+{
+    NonDefaultTableModel model;
+    QAbstractItemModelTester guard{&model,
+        QAbstractItemModelTester::FailureReportingMode::Fatal};
+    EXPECT_TRUE(model.reset(nonDefaultRows({{1, 2}, {3, 4}})));
+
+    QSignalSpy resetSpy(&model, &QAbstractItemModel::modelReset);
+    EXPECT_FALSE(model.reset(nonDefaultRows({{5}, {6, 7, 8}})));
+
+    EXPECT_EQ(resetSpy.count(), 0);
+    EXPECT_EQ(model.rowCount(), 2);
+    EXPECT_EQ(model.columnCount(), 2);
+}
+
+TEST(NonDefaultTableModel, ResetRectangularSucceeds)
+{
+    NonDefaultTableModel model;
+    QAbstractItemModelTester guard{&model,
+        QAbstractItemModelTester::FailureReportingMode::Fatal};
+
+    QSignalSpy resetSpy(&model, &QAbstractItemModel::modelReset);
+    EXPECT_TRUE(model.reset(nonDefaultRows({{1, 2, 3}, {4, 5, 6}})));
+
+    EXPECT_EQ(resetSpy.count(), 1);
+    EXPECT_EQ(model.rowCount(), 2);
+    EXPECT_EQ(model.columnCount(), 3);
+    EXPECT_EQ(model.index(0, 0).data(Qt::DisplayRole).toInt(), 1);
+}
+
+TEST(NonDefaultTableModel, ClearOnEmptyStaysEmpty)
+{
+    NonDefaultTableModel model;
+    QAbstractItemModelTester guard{&model,
+        QAbstractItemModelTester::FailureReportingMode::Fatal};
+    model.clear();
+    EXPECT_EQ(model.rowCount(), 0);
+    EXPECT_EQ(model.columnCount(), 0);
+}
+
+// ----- L. Suppression / réduction des dimensions existantes -----
+
+TEST_F(IntTableModelTest, RemoveRowsReducesRowCount)
+{
+    model.reset(std::vector<std::vector<int>>{{1, 2, 3}, {4, 5, 6}});
+    EXPECT_TRUE(model.removeRows(0, 1));
+    EXPECT_EQ(model.rowCount(), 1);
+    EXPECT_EQ(model.index(0, 0).data(ValueRole).toInt(), 4);
+}
+
+TEST_F(IntTableModelTest, RemoveColumnsReducesColumnCount)
+{
+    model.reset(std::vector<std::vector<int>>{{1, 2, 3}, {4, 5, 6}});
+    EXPECT_TRUE(model.removeColumns(0, 1));
+    EXPECT_EQ(model.columnCount(), 2);
+    EXPECT_EQ(model.index(0, 0).data(ValueRole).toInt(), 2);
+}
+
+TEST_F(IntTableModelTest, ResizeRowsShrinksAndGrows)
+{
+    model.resize_columns(2);
+    model.resize_rows(3, 7);
+    EXPECT_EQ(model.rowCount(), 3);
+    model.resize_rows(1);
+    EXPECT_EQ(model.rowCount(), 1);
+    model.resize_rows(4, 9);
+    EXPECT_EQ(model.rowCount(), 4);
+    EXPECT_EQ(model.index(3, 0).data(ValueRole).toInt(), 9);
 }

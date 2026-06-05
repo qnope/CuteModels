@@ -1,5 +1,6 @@
 #pragma once
 
+#include "CuteModel/Exceptions.h"
 #include "CuteModel/RefBase.h"
 #include "CuteModel/ValueRole.h"
 
@@ -15,7 +16,6 @@
 #include <QPersistentModelIndex>
 #include <QVariant>
 
-#include <exception>
 #include <memory>
 #include <type_traits>
 #include <utility>
@@ -35,7 +35,8 @@ public:
         const T &getValue() const
         {
             if (!m_index.isValid() || !m_model)
-                std::terminate();
+                throw NullObjectException(
+                    "BaseModel::Ref::getValue called on an invalidated reference");
 
             return m_model->getStorageValue(m_index);
         }
@@ -43,7 +44,8 @@ public:
         void setValue(const T &value)
         {
             if (!m_index.isValid() || !m_model)
-                std::terminate();
+                throw NullObjectException(
+                    "BaseModel::Ref::setValue called on an invalidated reference");
 
             m_model->setStorageValue(m_index, value);
         }
@@ -139,7 +141,7 @@ public:
     {
         if constexpr (is_compatible_with_value_role_v<T>) {
             if (role != ValueRole)
-                std::terminate();
+                return false;
             if (!checkIndex(index, CheckIndexOption::IndexIsValid))
                 return false;
             if (!value.canConvert<T>())
