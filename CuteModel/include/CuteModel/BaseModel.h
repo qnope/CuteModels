@@ -231,7 +231,6 @@ public:
                              action, data);
     }
 
-protected:
     virtual const T &getStorageValue(const QModelIndex &index) const = 0;
 
     virtual void setStorageValue(const QModelIndex &index, T value) = 0;

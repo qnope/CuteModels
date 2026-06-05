@@ -16,7 +16,9 @@ target_sources(cutemodel_tests PRIVATE
     test_basic_table_model.cpp
     test_table.cpp
     test_range_list.cpp
-    test_item_proxy.cpp)
+    test_item_proxy.cpp
+    test_model_traversal.cpp
+    test_selection_model.cpp)
 
 target_include_directories(cutemodel_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
