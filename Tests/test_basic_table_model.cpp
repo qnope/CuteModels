@@ -305,6 +305,189 @@ TEST_F(IntTableModelTest, InsertRowsOutOfRangeNoOp)
     EXPECT_EQ(model.rowCount(), 1);
 }
 
+TEST_F(IntTableModelTest, InsertRangeRowSingleFillsEachColumn)
+{
+    model.resize_columns(3);
+    model.push_back_row(0);
+
+    QSignalSpy spy(&model, &QAbstractItemModel::rowsInserted);
+
+    model.insert_range_row(0, std::vector<int>{1, 2, 3});
+
+    ASSERT_EQ(spy.count(), 1);
+    const QList<QVariant> args = spy.at(0);
+    EXPECT_EQ(args.at(1).toInt(), 0);
+    EXPECT_EQ(args.at(2).toInt(), 0);
+    EXPECT_EQ(model.rowCount(), 2);
+    EXPECT_EQ(model.index(0, 0).data(ValueRole).toInt(), 1);
+    EXPECT_EQ(model.index(0, 1).data(ValueRole).toInt(), 2);
+    EXPECT_EQ(model.index(0, 2).data(ValueRole).toInt(), 3);
+    EXPECT_EQ(model.index(1, 0).data(ValueRole).toInt(), 0);
+}
+
+TEST_F(IntTableModelTest, AppendRangeRowSingleAddsAtEnd)
+{
+    model.resize_columns(2);
+    model.push_back_row(9);
+
+    model.append_range_row(std::vector<int>{1, 2});
+
+    EXPECT_EQ(model.rowCount(), 2);
+    EXPECT_EQ(model.index(1, 0).data(ValueRole).toInt(), 1);
+    EXPECT_EQ(model.index(1, 1).data(ValueRole).toInt(), 2);
+}
+
+TEST_F(IntTableModelTest, AppendRangeRowSingleEstablishesColumnsOnEmptyModel)
+{
+    QSignalSpy columnsSpy(&model, &QAbstractItemModel::columnsInserted);
+    QSignalSpy rowsSpy(&model, &QAbstractItemModel::rowsInserted);
+
+    model.append_range_row(std::vector<int>{4, 5, 6});
+
+    ASSERT_EQ(columnsSpy.count(), 1);
+    EXPECT_EQ(columnsSpy.at(0).at(1).toInt(), 0);
+    EXPECT_EQ(columnsSpy.at(0).at(2).toInt(), 2);
+    ASSERT_EQ(rowsSpy.count(), 1);
+    EXPECT_EQ(model.rowCount(), 1);
+    EXPECT_EQ(model.columnCount(), 3);
+    EXPECT_EQ(model.index(0, 0).data(ValueRole).toInt(), 4);
+    EXPECT_EQ(model.index(0, 2).data(ValueRole).toInt(), 6);
+}
+
+TEST_F(IntTableModelTest, InsertRangeRowMultipleEmitsSingleSignal)
+{
+    model.resize_columns(2);
+    model.push_back_row(0);
+
+    QSignalSpy spy(&model, &QAbstractItemModel::rowsInserted);
+
+    model.insert_range_row(0, std::vector<std::vector<int>>{{1, 2}, {3, 4}});
+
+    ASSERT_EQ(spy.count(), 1);
+    const QList<QVariant> args = spy.at(0);
+    EXPECT_EQ(args.at(1).toInt(), 0);
+    EXPECT_EQ(args.at(2).toInt(), 1);
+    EXPECT_EQ(model.rowCount(), 3);
+    EXPECT_EQ(model.index(0, 0).data(ValueRole).toInt(), 1);
+    EXPECT_EQ(model.index(0, 1).data(ValueRole).toInt(), 2);
+    EXPECT_EQ(model.index(1, 0).data(ValueRole).toInt(), 3);
+    EXPECT_EQ(model.index(1, 1).data(ValueRole).toInt(), 4);
+    EXPECT_EQ(model.index(2, 0).data(ValueRole).toInt(), 0);
+}
+
+TEST_F(IntTableModelTest, AppendRangeRowMultipleAddsAtEnd)
+{
+    model.resize_columns(2);
+
+    model.append_range_row(std::vector<std::vector<int>>{{1, 2}, {3, 4}, {5, 6}});
+
+    EXPECT_EQ(model.rowCount(), 3);
+    EXPECT_EQ(model.index(2, 0).data(ValueRole).toInt(), 5);
+    EXPECT_EQ(model.index(2, 1).data(ValueRole).toInt(), 6);
+}
+
+TEST_F(IntTableModelTest, InsertRangeRowOutOfRangeNoOp)
+{
+    model.resize_columns(2);
+    model.push_back_row(0);
+
+    QSignalSpy spy(&model, &QAbstractItemModel::rowsInserted);
+
+    model.insert_range_row(-1, std::vector<int>{1, 2});
+    model.insert_range_row(2, std::vector<int>{1, 2});
+    model.insert_range_row(0, std::vector<std::vector<int>>{});
+
+    EXPECT_EQ(spy.count(), 0);
+    EXPECT_EQ(model.rowCount(), 1);
+}
+
+TEST_F(IntTableModelTest, InsertRangeColumnSingleFillsEachRow)
+{
+    model.resize_rows(3);
+    model.resize_columns(1);
+    for (int r = 0; r < 3; ++r)
+        EXPECT_TRUE(model.setData(model.index(r, 0), 9, ValueRole));
+
+    QSignalSpy spy(&model, &QAbstractItemModel::columnsInserted);
+
+    model.insert_range_column(0, std::vector<int>{1, 2, 3});
+
+    ASSERT_EQ(spy.count(), 1);
+    const QList<QVariant> args = spy.at(0);
+    EXPECT_EQ(args.at(1).toInt(), 0);
+    EXPECT_EQ(args.at(2).toInt(), 0);
+    EXPECT_EQ(model.columnCount(), 2);
+    EXPECT_EQ(model.index(0, 0).data(ValueRole).toInt(), 1);
+    EXPECT_EQ(model.index(1, 0).data(ValueRole).toInt(), 2);
+    EXPECT_EQ(model.index(2, 0).data(ValueRole).toInt(), 3);
+    EXPECT_EQ(model.index(0, 1).data(ValueRole).toInt(), 9);
+}
+
+TEST_F(IntTableModelTest, AppendRangeColumnSingleAddsAtEnd)
+{
+    model.resize_rows(2);
+    model.resize_columns(1);
+
+    model.append_range_column(std::vector<int>{7, 8});
+
+    EXPECT_EQ(model.columnCount(), 2);
+    EXPECT_EQ(model.index(0, 1).data(ValueRole).toInt(), 7);
+    EXPECT_EQ(model.index(1, 1).data(ValueRole).toInt(), 8);
+}
+
+TEST_F(IntTableModelTest, InsertRangeColumnMultipleShiftsExistingValues)
+{
+    model.resize_rows(2);
+    model.resize_columns(1);
+    EXPECT_TRUE(model.setData(model.index(0, 0), 100, ValueRole));
+    EXPECT_TRUE(model.setData(model.index(1, 0), 200, ValueRole));
+
+    QSignalSpy spy(&model, &QAbstractItemModel::columnsInserted);
+
+    model.insert_range_column(0, std::vector<std::vector<int>>{{1, 2}, {3, 4}});
+
+    ASSERT_EQ(spy.count(), 1);
+    const QList<QVariant> args = spy.at(0);
+    EXPECT_EQ(args.at(1).toInt(), 0);
+    EXPECT_EQ(args.at(2).toInt(), 1);
+    EXPECT_EQ(model.columnCount(), 3);
+    EXPECT_EQ(model.index(0, 0).data(ValueRole).toInt(), 1);
+    EXPECT_EQ(model.index(0, 1).data(ValueRole).toInt(), 3);
+    EXPECT_EQ(model.index(0, 2).data(ValueRole).toInt(), 100);
+    EXPECT_EQ(model.index(1, 0).data(ValueRole).toInt(), 2);
+    EXPECT_EQ(model.index(1, 1).data(ValueRole).toInt(), 4);
+    EXPECT_EQ(model.index(1, 2).data(ValueRole).toInt(), 200);
+}
+
+TEST_F(IntTableModelTest, AppendRangeColumnMultipleAddsAtEnd)
+{
+    model.resize_rows(2);
+    model.resize_columns(1);
+
+    model.append_range_column(std::vector<std::vector<int>>{{1, 2}, {3, 4}});
+
+    EXPECT_EQ(model.columnCount(), 3);
+    EXPECT_EQ(model.index(0, 1).data(ValueRole).toInt(), 1);
+    EXPECT_EQ(model.index(1, 1).data(ValueRole).toInt(), 2);
+    EXPECT_EQ(model.index(0, 2).data(ValueRole).toInt(), 3);
+    EXPECT_EQ(model.index(1, 2).data(ValueRole).toInt(), 4);
+}
+
+TEST_F(IntTableModelTest, InsertRangeColumnOutOfRangeNoOp)
+{
+    model.resize_rows(2);
+    model.resize_columns(1);
+
+    QSignalSpy spy(&model, &QAbstractItemModel::columnsInserted);
+
+    model.insert_range_column(-1, std::vector<int>{1, 2});
+    model.insert_range_column(2, std::vector<int>{1, 2});
+    model.insert_range_column(0, std::vector<std::vector<int>>{});
+
+    EXPECT_EQ(spy.count(), 0);
+    EXPECT_EQ(model.columnCount(), 1);
+}
+
 TEST_F(IntTableModelTest, EraseRowEmitsRowsRemoved)
 {
     model.resize_columns(1);

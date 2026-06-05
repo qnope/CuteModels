@@ -10,6 +10,7 @@
 
 #include <cstddef>
 #include <exception>
+#include <iterator>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -105,6 +106,50 @@ public:
         }
     }
 
+    // Insert a single row whose cells take the supplied per-column values.
+    void append_range_row(const std::vector<T> &values)
+    {
+        insert_range_row(rows(), values);
+    }
+
+    void insert_range_row(int row, const std::vector<T> &values)
+    {
+        insert_range_row(row, std::vector<std::vector<T>>{values});
+    }
+
+    // Insert several rows at once, each row carrying its own per-column values.
+    void append_range_row(const std::vector<std::vector<T>> &newRows)
+    {
+        insert_range_row(rows(), newRows);
+    }
+
+    void insert_range_row(int row, const std::vector<std::vector<T>> &newRows)
+    {
+        if (newRows.empty() || row < 0 || row > rows())
+            return;
+
+        const int width = static_cast<int>(newRows.front().size());
+        for (const auto &candidate : newRows) {
+            if (static_cast<int>(candidate.size()) != width)
+                std::terminate();
+        }
+
+        if (rows() == 0 && m_columnCount == 0) {
+            if (width > 0) {
+                this->beginInsertColumns(QModelIndex(), 0, width - 1);
+                m_columnCount = width;
+                this->endInsertColumns();
+            }
+        } else if (width != m_columnCount) {
+            std::terminate();
+        }
+
+        const int count = static_cast<int>(newRows.size());
+        this->beginInsertRows(QModelIndex(), row, row + count - 1);
+        m_rows.insert(m_rows.begin() + row, newRows.begin(), newRows.end());
+        this->endInsertRows();
+    }
+
     void erase_row(int row) { erase_rows(row, row); }
 
     void erase_rows(int first, int last)
@@ -186,6 +231,50 @@ public:
         } else {
             std::terminate();
         }
+    }
+
+    // Insert a single column whose cells take the supplied per-row values.
+    void append_range_column(const std::vector<T> &values)
+    {
+        insert_range_column(columns(), values);
+    }
+
+    void insert_range_column(int column, const std::vector<T> &values)
+    {
+        insert_range_column(column, std::vector<std::vector<T>>{values});
+    }
+
+    // Insert several columns at once, each column carrying its own per-row values.
+    void append_range_column(const std::vector<std::vector<T>> &newColumns)
+    {
+        insert_range_column(columns(), newColumns);
+    }
+
+    void insert_range_column(int column, const std::vector<std::vector<T>> &newColumns)
+    {
+        if (newColumns.empty() || column < 0 || column > m_columnCount)
+            return;
+
+        const int height = rows();
+        for (const auto &candidate : newColumns) {
+            if (static_cast<int>(candidate.size()) != height)
+                std::terminate();
+        }
+
+        const int count = static_cast<int>(newColumns.size());
+        this->beginInsertColumns(QModelIndex(), column, column + count - 1);
+        for (std::size_t r = 0; r < m_rows.size(); ++r) {
+            std::vector<T> cells;
+            cells.reserve(static_cast<std::size_t>(count));
+            for (int k = 0; k < count; ++k)
+                cells.push_back(newColumns[static_cast<std::size_t>(k)][r]);
+            auto &rowVec = m_rows[r];
+            rowVec.insert(rowVec.begin() + column,
+                          std::make_move_iterator(cells.begin()),
+                          std::make_move_iterator(cells.end()));
+        }
+        m_columnCount += count;
+        this->endInsertColumns();
     }
 
     void erase_column(int column) { erase_columns(column, column); }
