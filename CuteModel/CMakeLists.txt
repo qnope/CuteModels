@@ -13,6 +13,8 @@ target_sources(CuteModel
             include/CuteModel/ValueRole.h
             include/CuteModel/RefBase.h
             include/CuteModel/ItemProxy.h
+            include/CuteModel/RangeList.h
+            include/CuteModel/Exceptions.h
             include/CuteModel/BaseModel.h
             include/CuteModel/BasicListModel.h
             include/CuteModel/BasicTableModel.h)

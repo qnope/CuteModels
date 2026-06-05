@@ -12,7 +12,7 @@
 #include <QVariant>
 
 #include <cstddef>
-#include <exception>
+#include <stdexcept>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -126,7 +126,7 @@ public:
             insert_range(row, std::vector<T>(static_cast<std::size_t>(count), T()));
             return true;
         } else {
-            std::terminate();
+            return false;
         }
     }
 
@@ -202,7 +202,8 @@ public:
     RangeList<const T> iter(int first, int number) const
     {
         if (first < 0 || number < 0 || first + number > size())
-            std::terminate();
+            throw std::out_of_range(
+                "BasicListModel::iter called with out-of-range bounds");
         if (number == 0)
             return RangeList<const T>(m_items.cbegin() + first,
                                       m_items.cbegin() + first,
@@ -220,7 +221,8 @@ public:
     RangeList<T> iter_mut(int first, int number)
     {
         if (first < 0 || number < 0 || first + number > size())
-            std::terminate();
+            throw std::out_of_range(
+                "BasicListModel::iter_mut called with out-of-range bounds");
         if (number == 0)
             return RangeList<T>(m_items.begin() + first,
                                 m_items.begin() + first,

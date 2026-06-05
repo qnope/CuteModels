@@ -8,8 +8,8 @@
 #include <QPersistentModelIndex>
 #include <QVariant>
 
+#include <algorithm>
 #include <cstddef>
-#include <exception>
 #include <iterator>
 #include <type_traits>
 #include <utility>
@@ -102,52 +102,84 @@ public:
             insert_rows(row, count);
             return true;
         } else {
-            std::terminate();
+            return false;
         }
     }
 
     // Insert a single row whose cells take the supplied per-column values.
-    void append_range_row(const std::vector<T> &values)
+    bool append_range_row(const std::vector<T> &values)
     {
-        insert_range_row(rows(), values);
+        return insert_range_row(rows(), values);
     }
 
-    void insert_range_row(int row, const std::vector<T> &values)
+    bool insert_range_row(int row, const std::vector<T> &values)
     {
-        insert_range_row(row, std::vector<std::vector<T>>{values});
+        return insert_range_row(row, std::vector<std::vector<T>>{values});
     }
 
     // Insert several rows at once, each row carrying its own per-column values.
-    void append_range_row(const std::vector<std::vector<T>> &newRows)
+    bool append_range_row(const std::vector<std::vector<T>> &newRows)
     {
-        insert_range_row(rows(), newRows);
+        return insert_range_row(rows(), newRows);
     }
 
-    void insert_range_row(int row, const std::vector<std::vector<T>> &newRows)
+    bool insert_range_row(int row, const std::vector<std::vector<T>> &newRows)
     {
         if (newRows.empty() || row < 0 || row > rows())
-            return;
+            return false;
 
-        const int width = static_cast<int>(newRows.front().size());
+        int max_newrows_width = 0;
+        for (const auto &candidate : newRows)
+            max_newrows_width = std::max(max_newrows_width,
+                                         static_cast<int>(candidate.size()));
+
+        const int effective_width = std::max(max_newrows_width, m_columnCount);
+        const bool need_extend_table = (effective_width > m_columnCount);
+        bool need_pad_newrows = false;
         for (const auto &candidate : newRows) {
-            if (static_cast<int>(candidate.size()) != width)
-                std::terminate();
+            if (static_cast<int>(candidate.size()) < effective_width) {
+                need_pad_newrows = true;
+                break;
+            }
         }
 
-        if (rows() == 0 && m_columnCount == 0) {
-            if (width > 0) {
-                this->beginInsertColumns(QModelIndex(), 0, width - 1);
-                m_columnCount = width;
+        if constexpr (!std::is_default_constructible_v<T>) {
+            if (need_extend_table || need_pad_newrows)
+                return false;
+            const int count = static_cast<int>(newRows.size());
+            this->beginInsertRows(QModelIndex(), row, row + count - 1);
+            m_rows.insert(m_rows.begin() + row, newRows.begin(), newRows.end());
+            this->endInsertRows();
+            return true;
+        } else {
+            if (need_extend_table) {
+                this->beginInsertColumns(QModelIndex(),
+                                         m_columnCount, effective_width - 1);
+                const std::size_t delta = static_cast<std::size_t>(
+                    effective_width - m_columnCount);
+                for (auto &existing_row : m_rows)
+                    existing_row.insert(existing_row.end(), delta, T());
+                m_columnCount = effective_width;
                 this->endInsertColumns();
             }
-        } else if (width != m_columnCount) {
-            std::terminate();
-        }
 
-        const int count = static_cast<int>(newRows.size());
-        this->beginInsertRows(QModelIndex(), row, row + count - 1);
-        m_rows.insert(m_rows.begin() + row, newRows.begin(), newRows.end());
-        this->endInsertRows();
+            std::vector<std::vector<T>> padded;
+            padded.reserve(newRows.size());
+            for (const auto &candidate : newRows) {
+                padded.push_back(candidate);
+                auto &pr = padded.back();
+                if (static_cast<int>(pr.size()) < effective_width)
+                    pr.resize(static_cast<std::size_t>(effective_width), T());
+            }
+
+            const int count = static_cast<int>(padded.size());
+            this->beginInsertRows(QModelIndex(), row, row + count - 1);
+            m_rows.insert(m_rows.begin() + row,
+                          std::make_move_iterator(padded.begin()),
+                          std::make_move_iterator(padded.end()));
+            this->endInsertRows();
+            return true;
+        }
     }
 
     void erase_row(int row) { erase_rows(row, row); }
@@ -229,52 +261,103 @@ public:
             insert_columns(column, count);
             return true;
         } else {
-            std::terminate();
+            return false;
         }
     }
 
     // Insert a single column whose cells take the supplied per-row values.
-    void append_range_column(const std::vector<T> &values)
+    bool append_range_column(const std::vector<T> &values)
     {
-        insert_range_column(columns(), values);
+        return insert_range_column(columns(), values);
     }
 
-    void insert_range_column(int column, const std::vector<T> &values)
+    bool insert_range_column(int column, const std::vector<T> &values)
     {
-        insert_range_column(column, std::vector<std::vector<T>>{values});
+        return insert_range_column(column, std::vector<std::vector<T>>{values});
     }
 
     // Insert several columns at once, each column carrying its own per-row values.
-    void append_range_column(const std::vector<std::vector<T>> &newColumns)
+    bool append_range_column(const std::vector<std::vector<T>> &newColumns)
     {
-        insert_range_column(columns(), newColumns);
+        return insert_range_column(columns(), newColumns);
     }
 
-    void insert_range_column(int column, const std::vector<std::vector<T>> &newColumns)
+    bool insert_range_column(int column, const std::vector<std::vector<T>> &newColumns)
     {
         if (newColumns.empty() || column < 0 || column > m_columnCount)
-            return;
+            return false;
 
-        const int height = rows();
+        int max_newcols_height = 0;
+        for (const auto &candidate : newColumns)
+            max_newcols_height = std::max(max_newcols_height,
+                                          static_cast<int>(candidate.size()));
+
+        const int current_height = rows();
+        const int effective_height = std::max(max_newcols_height, current_height);
+        const bool need_extend_table = (effective_height > current_height);
+        bool need_pad_newcols = false;
         for (const auto &candidate : newColumns) {
-            if (static_cast<int>(candidate.size()) != height)
-                std::terminate();
+            if (static_cast<int>(candidate.size()) < effective_height) {
+                need_pad_newcols = true;
+                break;
+            }
         }
 
         const int count = static_cast<int>(newColumns.size());
-        this->beginInsertColumns(QModelIndex(), column, column + count - 1);
-        for (std::size_t r = 0; r < m_rows.size(); ++r) {
-            std::vector<T> cells;
-            cells.reserve(static_cast<std::size_t>(count));
-            for (int k = 0; k < count; ++k)
-                cells.push_back(newColumns[static_cast<std::size_t>(k)][r]);
-            auto &rowVec = m_rows[r];
-            rowVec.insert(rowVec.begin() + column,
-                          std::make_move_iterator(cells.begin()),
-                          std::make_move_iterator(cells.end()));
+
+        if constexpr (!std::is_default_constructible_v<T>) {
+            if (need_extend_table || need_pad_newcols)
+                return false;
+            this->beginInsertColumns(QModelIndex(), column, column + count - 1);
+            for (std::size_t r = 0; r < m_rows.size(); ++r) {
+                std::vector<T> cells;
+                cells.reserve(static_cast<std::size_t>(count));
+                for (int k = 0; k < count; ++k)
+                    cells.push_back(newColumns[static_cast<std::size_t>(k)][r]);
+                auto &rowVec = m_rows[r];
+                rowVec.insert(rowVec.begin() + column,
+                              std::make_move_iterator(cells.begin()),
+                              std::make_move_iterator(cells.end()));
+            }
+            m_columnCount += count;
+            this->endInsertColumns();
+            return true;
+        } else {
+            if (need_extend_table) {
+                this->beginInsertRows(QModelIndex(),
+                                      current_height, effective_height - 1);
+                const int delta = effective_height - current_height;
+                for (int i = 0; i < delta; ++i)
+                    m_rows.push_back(std::vector<T>(
+                        static_cast<std::size_t>(m_columnCount), T()));
+                this->endInsertRows();
+            }
+
+            std::vector<std::vector<T>> padded;
+            padded.reserve(newColumns.size());
+            for (const auto &candidate : newColumns) {
+                padded.push_back(candidate);
+                auto &pc = padded.back();
+                if (static_cast<int>(pc.size()) < effective_height)
+                    pc.resize(static_cast<std::size_t>(effective_height), T());
+            }
+
+            this->beginInsertColumns(QModelIndex(), column, column + count - 1);
+            for (std::size_t r = 0; r < m_rows.size(); ++r) {
+                std::vector<T> cells;
+                cells.reserve(static_cast<std::size_t>(count));
+                for (int k = 0; k < count; ++k)
+                    cells.push_back(std::move(
+                        padded[static_cast<std::size_t>(k)][r]));
+                auto &rowVec = m_rows[r];
+                rowVec.insert(rowVec.begin() + column,
+                              std::make_move_iterator(cells.begin()),
+                              std::make_move_iterator(cells.end()));
+            }
+            m_columnCount += count;
+            this->endInsertColumns();
+            return true;
         }
-        m_columnCount += count;
-        this->endInsertColumns();
     }
 
     void erase_column(int column) { erase_columns(column, column); }
@@ -324,22 +407,39 @@ public:
         }
     }
 
-    void clear() { reset({}); }
+    void clear() { (void)reset({}); }
 
-    void reset(std::vector<std::vector<T>> newRows)
+    bool reset(std::vector<std::vector<T>> newRows)
     {
-        int newColumnCount = 0;
-        if (!newRows.empty()) {
-            newColumnCount = static_cast<int>(newRows.front().size());
-            for (const auto &row : newRows) {
-                if (static_cast<int>(row.size()) != newColumnCount)
-                    std::terminate();
+        int max_width = 0;
+        for (const auto &row : newRows)
+            max_width = std::max(max_width, static_cast<int>(row.size()));
+
+        bool need_pad = false;
+        for (const auto &row : newRows) {
+            if (static_cast<int>(row.size()) < max_width) {
+                need_pad = true;
+                break;
             }
         }
+
+        if constexpr (!std::is_default_constructible_v<T>) {
+            if (need_pad)
+                return false;
+        } else {
+            if (need_pad) {
+                for (auto &row : newRows) {
+                    if (static_cast<int>(row.size()) < max_width)
+                        row.resize(static_cast<std::size_t>(max_width), T());
+                }
+            }
+        }
+
         this->beginResetModel();
         m_rows = std::move(newRows);
-        m_columnCount = newColumnCount;
+        m_columnCount = max_width;
         this->endResetModel();
+        return true;
     }
 
     ItemProxy<const T> at(int row, int column) const

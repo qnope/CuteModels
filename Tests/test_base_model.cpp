@@ -230,11 +230,16 @@ TEST_F(BaseModelTest, SetDataRejectsInvalidVariant)
     EXPECT_EQ(changedSpy.count(), 0);
 }
 
-TEST_F(BaseModelTest, SetDataWithUnsupportedRoleTerminates)
+TEST_F(BaseModelTest, SetDataWithUnsupportedRoleReturnsFalse)
 {
-    EXPECT_DEATH({ (void)model.setData(model.index(0, 0), 1, Qt::DisplayRole); }, "");
-    EXPECT_DEATH({ (void)model.setData(model.index(0, 0), 1, Qt::EditRole); }, "");
-    EXPECT_DEATH({ (void)model.setData(model.index(0, 0), 1, Qt::UserRole + 5); }, "");
+    QSignalSpy changedSpy(&model, &QAbstractItemModel::dataChanged);
+
+    EXPECT_FALSE(model.setData(model.index(0, 0), 1, Qt::DisplayRole));
+    EXPECT_FALSE(model.setData(model.index(0, 0), 1, Qt::EditRole));
+    EXPECT_FALSE(model.setData(model.index(0, 0), 1, Qt::UserRole + 5));
+
+    EXPECT_EQ(changedSpy.count(), 0);
+    EXPECT_EQ(model.storage(), 0);
 }
 
 TEST_F(BaseModelTest, RoleNamesAdvertisesValueRole)

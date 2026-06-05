@@ -3,7 +3,7 @@
 #include <QAbstractItemModel>
 #include <QPersistentModelIndex>
 
-#include <exception>
+#include <stdexcept>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -29,7 +29,8 @@ public:
         , m_bottomRight(std::move(bottomRight))
     {
         if (m_begin != m_end && (!m_topLeft.isValid() || !m_bottomRight.isValid()))
-            std::terminate();
+            throw std::invalid_argument(
+                "RangeList: non-empty range requires valid model indices");
     }
 
     RangeList(const RangeList &) = delete;

@@ -3,8 +3,8 @@
 #include <QAbstractItemModel>
 #include <QPersistentModelIndex>
 
-#include <exception>
 #include <memory>
+#include <stdexcept>
 #include <type_traits>
 #include <utility>
 
@@ -24,7 +24,8 @@ public:
         , m_right(std::move(right))
     {
         if (!m_index.isValid() || !m_left.isValid() || !m_right.isValid())
-            std::terminate();
+            throw std::invalid_argument(
+                "ItemProxy: requires valid model indices");
     }
 
     ItemProxy(const ItemProxy &) = delete;
