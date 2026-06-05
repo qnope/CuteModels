@@ -143,21 +143,17 @@ private:
         return rows;
     }
 
-    // Tous les index dont la valeur stockée vaut `value`, restreints selon le mode.
+    // Tous les index dont la valeur stockée vaut `value`. En mode List on ne
+    // considère que la colonne 0 (une entrée par ligne) ; en mode Table toutes
+    // les cellules.
     std::vector<QModelIndex> indexesForValue(const T &value) const
     {
-        std::vector<QModelIndex> matches = indexesMatching<T>(
-            *m_model, [&value](const T &candidate) { return candidate == value; });
-        if (m_mode == SelectionMode::Table)
-            return matches;
-
-        // List : garder un index par ligne (colonne 0). Comme une ligne projette
-        // la même valeur sur toutes ses colonnes, cela donne une entrée par ligne.
-        std::vector<QModelIndex> column0;
-        for (const QModelIndex &index : matches)
-            if (index.column() == 0)
-                column0.push_back(index);
-        return column0;
+        const ColumnPolicy columns = (m_mode == SelectionMode::List)
+                                         ? ColumnPolicy::FirstColumnOnly
+                                         : ColumnPolicy::AllColumns;
+        return indexesMatching<T>(
+            *m_model, [&value](const T &candidate) { return candidate == value; },
+            columns);
     }
 
     BaseModel<T> *m_model;
