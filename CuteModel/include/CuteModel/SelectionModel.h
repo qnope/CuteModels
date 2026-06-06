@@ -17,7 +17,6 @@
 
 namespace cute {
 
-// Vrai si T expose `a == b` pour deux const T&. Guard pour la sélection par valeur.
 template <typename T, typename = void>
 struct is_equality_comparable : std::false_type
 {
@@ -33,9 +32,6 @@ struct is_equality_comparable<
 template <typename T>
 constexpr bool is_equality_comparable_v = is_equality_comparable<T>::value;
 
-// Grain des accesseurs typés :
-//  - List  : un T par ligne touchée par la sélection (index de colonne 0).
-//  - Table : un T par cellule (index) sélectionnée.
 enum class SelectionMode
 {
     List,
@@ -48,8 +44,6 @@ class SelectionModel : public QItemSelectionModel
 public:
     using Ref = typename BaseModel<T>::Ref;
 
-    // Garde visibles les surcharges select()/isSelected() par index de la base
-    // à côté des surcharges par valeur ci-dessous.
     using QItemSelectionModel::isSelected;
     using QItemSelectionModel::select;
 
@@ -64,20 +58,20 @@ public:
     BaseModel<T> *sourceModel() const { return m_model; }
     SelectionMode mode() const { return m_mode; }
 
-    // --- Lecture typée des éléments sélectionnés -------------------------------
-
-    template <typename U = T, std::enable_if_t<std::is_copy_constructible_v<U>, int> = 0>
     std::vector<T> selectedValues() const
     {
+        static_assert(std::is_copy_constructible_v<T>,
+                      "selectedValues requires a copy-constructible T");
         std::vector<T> values;
         for (const QModelIndex &index : selectedTypedIndexes())
             values.push_back(m_model->getStorageValue(index));
         return values;
     }
 
-    template <typename U = T, std::enable_if_t<std::is_copy_constructible_v<U>, int> = 0>
     std::optional<T> currentValue() const
     {
+        static_assert(std::is_copy_constructible_v<T>,
+                      "currentValue requires a copy-constructible T");
         const QModelIndex index = currentIndex();
         if (!index.isValid())
             return std::nullopt;
@@ -99,26 +93,27 @@ public:
         return m_model->template getRef<R>(currentIndex());
     }
 
-    // --- Sélection par valeur --------------------------------------------------
-
-    template <typename U = T, std::enable_if_t<is_equality_comparable_v<U>, int> = 0>
     void select(const T &value, QItemSelectionModel::SelectionFlags command)
     {
+        static_assert(is_equality_comparable_v<T>,
+                      "select(const T&) requires an equality-comparable T");
         QItemSelection selection;
         for (const QModelIndex &index : indexesForValue(value))
             selection.select(index, index);
         QItemSelectionModel::select(selection, command);
     }
 
-    template <typename U = T, std::enable_if_t<is_equality_comparable_v<U>, int> = 0>
     void deselect(const T &value)
     {
+        static_assert(is_equality_comparable_v<T>,
+                      "deselect(const T&) requires an equality-comparable T");
         select(value, QItemSelectionModel::Deselect);
     }
 
-    template <typename U = T, std::enable_if_t<is_equality_comparable_v<U>, int> = 0>
     bool isSelected(const T &value) const
     {
+        static_assert(is_equality_comparable_v<T>,
+                      "isSelected(const T&) requires an equality-comparable T");
         for (const QModelIndex &index : indexesForValue(value))
             if (QItemSelectionModel::isSelected(index))
                 return true;
@@ -126,14 +121,12 @@ public:
     }
 
 private:
-    // Index pertinents pour la lecture, selon le mode.
     std::vector<QModelIndex> selectedTypedIndexes() const
     {
         const QModelIndexList selected = selectedIndexes();
         if (m_mode == SelectionMode::Table)
             return std::vector<QModelIndex>(selected.cbegin(), selected.cend());
 
-        // List : une entrée (colonne 0) par ligne touchée, sans doublon.
         std::vector<QModelIndex> rows;
         for (const QModelIndex &index : selected) {
             const QModelIndex column0 = index.sibling(index.row(), 0);
@@ -143,9 +136,6 @@ private:
         return rows;
     }
 
-    // Tous les index dont la valeur stockée vaut `value`. En mode List on ne
-    // considère que la colonne 0 (une entrée par ligne) ; en mode Table toutes
-    // les cellules.
     std::vector<QModelIndex> indexesForValue(const T &value) const
     {
         const ColumnPolicy columns = (m_mode == SelectionMode::List)
