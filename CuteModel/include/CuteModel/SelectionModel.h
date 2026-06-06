@@ -79,7 +79,7 @@ public:
     }
 
     template <typename R = Ref>
-    std::vector<std::unique_ptr<R>> selectedRefs()
+    std::vector<std::unique_ptr<R>> selectedRefs() const
     {
         std::vector<std::unique_ptr<R>> refs;
         for (const QModelIndex &index : selectedTypedIndexes())
@@ -88,7 +88,7 @@ public:
     }
 
     template <typename R = Ref>
-    std::unique_ptr<R> currentRef()
+    std::unique_ptr<R> currentRef() const
     {
         return m_model->template getRef<R>(currentIndex());
     }

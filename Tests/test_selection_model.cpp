@@ -268,6 +268,22 @@ TEST_F(SelectionModelListTest, CurrentRefAndValueReflectCurrentIndex)
     EXPECT_EQ(ref->getValue(), 20);
 }
 
+TEST_F(SelectionModelListTest, RefAccessorsAreCallableOnConstModel)
+{
+    selection.select(idx(1), QItemSelectionModel::Select);
+    selection.setCurrentIndex(idx(1), QItemSelectionModel::NoUpdate);
+
+    const SelectionModel<int> &constSelection = selection;
+
+    auto refs = constSelection.selectedRefs();
+    ASSERT_EQ(refs.size(), 1u);
+    EXPECT_EQ(refs[0]->getValue(), 20);
+
+    auto current = constSelection.currentRef();
+    ASSERT_NE(current, nullptr);
+    EXPECT_EQ(current->getValue(), 20);
+}
+
 TEST_F(SelectionModelListTest, SelectedRefsStayValidAcrossSelectDeselectCycles)
 {
     selection.select(idx(1), QItemSelectionModel::Select);
