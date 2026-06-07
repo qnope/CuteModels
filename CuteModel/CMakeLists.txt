@@ -20,7 +20,9 @@ target_sources(CuteModel
             include/CuteModel/SelectionModel.h
             include/CuteModel/BasicListModel.h
             include/CuteModel/Table.h
-            include/CuteModel/BasicTableModel.h)
+            include/CuteModel/BasicTableModel.h
+            include/CuteModel/TreeNode.h
+            include/CuteModel/TreeModel.h)
 
 target_compile_features(CuteModel PUBLIC cxx_std_17)
 
