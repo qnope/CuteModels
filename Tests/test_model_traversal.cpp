@@ -1,4 +1,4 @@
-#include "CuteModel/BaseModel.h"
+#include "CuteModel/AbstractSourceModel.h"
 #include "CuteModel/BasicListModel.h"
 #include "CuteModel/ModelTraversal.h"
 
@@ -13,7 +13,7 @@
 #include <memory>
 #include <vector>
 
-using cute::BaseModel;
+using cute::AbstractSourceModel;
 using cute::BasicListModel;
 
 namespace {
@@ -42,7 +42,7 @@ struct TreeNode
     std::vector<std::unique_ptr<TreeNode>> children;
 };
 
-class IntTreeModel : public BaseModel<int>
+class IntTreeModel : public AbstractSourceModel<int>
 {
 public:
     TreeNode *addNode(TreeNode *parent, int value)
@@ -123,7 +123,7 @@ private:
     TreeNode m_root;
 };
 
-std::vector<int> valuesAt(const BaseModel<int> &model,
+std::vector<int> valuesAt(const AbstractSourceModel<int> &model,
                           const std::vector<QModelIndex> &indexes)
 {
     std::vector<int> values;

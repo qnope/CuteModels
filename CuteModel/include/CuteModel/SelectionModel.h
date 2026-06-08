@@ -1,6 +1,6 @@
 #pragma once
 
-#include "CuteModel/BaseModel.h"
+#include "CuteModel/AbstractSourceModel.h"
 #include "CuteModel/ModelTraversal.h"
 
 #include <QItemSelection>
@@ -42,12 +42,12 @@ template <typename T>
 class SelectionModel : public QItemSelectionModel
 {
 public:
-    using Ref = typename BaseModel<T>::Ref;
+    using Ref = typename AbstractSourceModel<T>::Ref;
 
     using QItemSelectionModel::isSelected;
     using QItemSelectionModel::select;
 
-    explicit SelectionModel(BaseModel<T> *model,
+    explicit SelectionModel(AbstractSourceModel<T> *model,
                             SelectionMode mode = SelectionMode::List,
                             QObject *parent = nullptr)
         : QItemSelectionModel(model, parent)
@@ -55,7 +55,7 @@ public:
         , m_mode(mode)
     {}
 
-    BaseModel<T> *sourceModel() const { return m_model; }
+    AbstractSourceModel<T> *sourceModel() const { return m_model; }
     SelectionMode mode() const { return m_mode; }
 
     std::vector<T> selectedValues() const
@@ -146,7 +146,7 @@ private:
             columns);
     }
 
-    BaseModel<T> *m_model;
+    AbstractSourceModel<T> *m_model;
     SelectionMode m_mode;
 };
 

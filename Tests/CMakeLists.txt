@@ -10,7 +10,7 @@ set_target_properties(cutemodel_tests PROPERTIES AUTOMOC ON)
 target_sources(cutemodel_tests PRIVATE
     test_value_role.cpp
     test_ref.cpp
-    test_base_model.cpp
+    test_abstract_source_model.cpp
     test_basic_list_model.cpp
     test_basic_list_model_columns.cpp
     test_basic_table_model.cpp

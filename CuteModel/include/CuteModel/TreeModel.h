@@ -1,6 +1,6 @@
 #pragma once
 
-#include "CuteModel/BaseModel.h"
+#include "CuteModel/AbstractSourceModel.h"
 #include "CuteModel/TreeNode.h"
 
 #include <QModelIndex>
@@ -17,7 +17,7 @@
 namespace cute {
 
 template <typename NodePtr>
-class TreeModel : public BaseModel<NodePtr>
+class TreeModel : public AbstractSourceModel<NodePtr>
 {
 public:
     using node_ptr = NodePtr;
@@ -25,12 +25,12 @@ public:
     using payload_type = typename node_type::payload_type;
 
     explicit TreeModel(QObject *parent = nullptr)
-        : BaseModel<node_ptr>(parent)
+        : AbstractSourceModel<node_ptr>(parent)
         , m_root(node_ptr(new node_type(typename node_type::RootTag{}, this)))
     {}
 
     explicit TreeModel(QStringList headers, QObject *parent = nullptr)
-        : BaseModel<node_ptr>(parent)
+        : AbstractSourceModel<node_ptr>(parent)
         , m_root(node_ptr(new node_type(typename node_type::RootTag{}, this)))
         , m_headers(headers.isEmpty() ? QStringList{QString()} : std::move(headers))
     {}

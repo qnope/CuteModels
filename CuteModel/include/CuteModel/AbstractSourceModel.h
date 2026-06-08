@@ -24,7 +24,7 @@
 namespace cute {
 
 template <typename T>
-class BaseModel : public QAbstractItemModel
+class AbstractSourceModel : public QAbstractItemModel
 {
 public:
     using QAbstractItemModel::QAbstractItemModel;
@@ -36,7 +36,7 @@ public:
         {
             if (!m_index.isValid() || !m_model)
                 throw NullObjectException(
-                    "BaseModel::Ref::getValue called on an invalidated reference");
+                    "AbstractSourceModel::Ref::getValue called on an invalidated reference");
 
             return m_model->getStorageValue(m_index);
         }
@@ -45,27 +45,27 @@ public:
         {
             if (!m_index.isValid() || !m_model)
                 throw NullObjectException(
-                    "BaseModel::Ref::setValue called on an invalidated reference");
+                    "AbstractSourceModel::Ref::setValue called on an invalidated reference");
 
             m_model->setStorageValue(m_index, value);
         }
 
     protected:
-        Ref(BaseModel *model, QPersistentModelIndex index)
+        Ref(AbstractSourceModel *model, QPersistentModelIndex index)
             : RefBase(std::move(index))
             , m_model(model)
         {}
 
-        BaseModel *m_model;
+        AbstractSourceModel *m_model;
 
-        friend class BaseModel;
+        friend class AbstractSourceModel;
     };
 
     template <typename R = Ref>
     std::unique_ptr<R> getRef(const QModelIndex &index)
     {
         static_assert(std::is_base_of_v<Ref, R>,
-                      "getRef<R> requires R to derive from BaseModel<T>::Ref");
+                      "getRef<R> requires R to derive from AbstractSourceModel<T>::Ref");
 
         if (!index.isValid())
             return nullptr;
@@ -75,7 +75,7 @@ public:
 
     virtual QString mimeTypeForValue() const
     {
-        return QStringLiteral("application/BaseModel");
+        return QStringLiteral("application/AbstractSourceModel");
     }
 
     virtual void encodeMimeData(QDataStream &stream, const std::vector<T> &values) const {}
