@@ -16,22 +16,22 @@
 
 namespace cute {
 
-template <typename Node>
-class TreeModel : public BaseModel<typename Node::payload_type>
+template <typename T>
+class TreeModel : public BaseModel<std::shared_ptr<TreeNode<T>>>
 {
 public:
-    using T = typename Node::payload_type;
+    using payload_type = T;
+    using node_type = TreeNode<T>;
+    using node_ptr = std::shared_ptr<node_type>;
 
     explicit TreeModel(QObject *parent = nullptr)
-        : BaseModel<T>(parent)
-        , m_root(std::shared_ptr<Node>(
-              new Node(typename Node::RootTag{}, this)))
+        : BaseModel<node_ptr>(parent)
+        , m_root(node_ptr(new node_type(typename node_type::RootTag{}, this)))
     {}
 
     explicit TreeModel(QStringList headers, QObject *parent = nullptr)
-        : BaseModel<T>(parent)
-        , m_root(std::shared_ptr<Node>(
-              new Node(typename Node::RootTag{}, this)))
+        : BaseModel<node_ptr>(parent)
+        , m_root(node_ptr(new node_type(typename node_type::RootTag{}, this)))
         , m_headers(headers.isEmpty() ? QStringList{QString()} : std::move(headers))
     {}
 
@@ -66,11 +66,6 @@ public:
         return this->createIndex(parentNode->indexInParent(), 0, parentNode.get());
     }
 
-    bool hasChildren(const QModelIndex &parent = QModelIndex()) const override
-    {
-        return !nodeAt(parent)->empty();
-    }
-
     QVariant headerData(int section, Qt::Orientation orientation,
                         int role = Qt::DisplayRole) const override
     {
@@ -89,11 +84,11 @@ public:
         if (count == 0)
             return true;
 
-        if constexpr (std::is_default_constructible_v<T>) {
-            std::vector<std::shared_ptr<Node>> fresh;
+        if constexpr (std::is_default_constructible_v<payload_type>) {
+            std::vector<node_ptr> fresh;
             fresh.reserve(static_cast<std::size_t>(count));
             for (int i = 0; i < count; ++i)
-                fresh.push_back(std::make_shared<Node>(T{}));
+                fresh.push_back(std::make_shared<node_type>(payload_type{}));
             parentNode->insert_range(row, std::move(fresh));
             return true;
         } else {
@@ -113,14 +108,14 @@ public:
         return true;
     }
 
-    const std::shared_ptr<Node> &root() const noexcept { return m_root; }
+    const node_ptr &root() const noexcept { return m_root; }
 
-    std::shared_ptr<Node> nodeAt(const QModelIndex &index) const
+    node_ptr nodeAt(const QModelIndex &index) const
     {
         if (!index.isValid())
             return m_root;
-        auto *node = static_cast<Node *>(index.internalPointer());
-        return std::static_pointer_cast<Node>(node->shared_from_this());
+        auto *node = static_cast<node_type *>(index.internalPointer());
+        return node->shared_from_this();
     }
 
     void clear()
@@ -128,7 +123,7 @@ public:
         if (m_root->m_children.empty())
             return;
         this->beginResetModel();
-        std::vector<std::shared_ptr<Node>> old;
+        std::vector<node_ptr> old;
         old.swap(m_root->m_children);
         for (auto &c : old)
             c->detachSubtree();
@@ -136,12 +131,30 @@ public:
     }
 
 protected:
-    const T &getStorageValue(const QModelIndex &index) const override
+    const node_ptr &getStorageValue(const QModelIndex &index) const override
     {
-        return nodeAt(index)->payloadRef();
+        auto *node = static_cast<node_type *>(index.internalPointer());
+        const auto parentNode = node->parent();
+        return parentNode->m_children[static_cast<std::size_t>(node->indexInParent())];
     }
 
-    void setStorageValue(const QModelIndex &index, T value) override
+    void setStorageValue(const QModelIndex &index, node_ptr value) override
+    {
+        if (!index.isValid() || !value)
+            return;
+
+        const auto target = nodeAt(index);
+        const auto parentNode = target->parent();
+        const int row = target->indexInParent();
+
+        parentNode->erase_child(row);
+        parentNode->insert_child(row, std::move(value));
+    }
+
+private:
+    friend class TreeNode<T>;
+
+    void setPayloadAt(const QModelIndex &index, payload_type value)
     {
         const auto node = nodeAt(index);
         node->constructPayload(std::move(value));
@@ -154,10 +167,7 @@ protected:
         emit this->dataChanged(left, right);
     }
 
-private:
-    friend class TreeNode<T>;
-
-    std::shared_ptr<Node> m_root;
+    node_ptr m_root;
     QStringList m_headers{QString()};
 };
 

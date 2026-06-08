@@ -29,18 +29,18 @@ namespace {
 
 using Reporting = QAbstractItemModelTester::FailureReportingMode;
 
-class StringTreeModel : public TreeModel<TreeNode<QString>>
+class StringTreeModel : public TreeModel<QString>
 {
 public:
-    using TreeModel<TreeNode<QString>>::TreeModel;
-    using TreeModel<TreeNode<QString>>::data;
+    using TreeModel<QString>::TreeModel;
+    using TreeModel<QString>::data;
 
-    QVariant data(const QString &value, const QModelIndex &index, int role) const override
+    QVariant data(const std::shared_ptr<TreeNode<QString>> &node, const QModelIndex &index, int role) const override
     {
         if (index.column() != 0)
             return {};
         if (role == Qt::DisplayRole || role == Qt::EditRole)
-            return value;
+            return node->payload();
         return {};
     }
 };
@@ -56,61 +56,61 @@ bool operator==(const Pod &a, const Pod &b)
     return a.id == b.id && a.label == b.label;
 }
 
-class MultiColumnTreeModel : public TreeModel<TreeNode<Pod>>
+class MultiColumnTreeModel : public TreeModel<Pod>
 {
 public:
-    using TreeModel<TreeNode<Pod>>::TreeModel;
-    using TreeModel<TreeNode<Pod>>::data;
+    using TreeModel<Pod>::TreeModel;
+    using TreeModel<Pod>::data;
 
-    QVariant data(const Pod &value, const QModelIndex &index, int role) const override
+    QVariant data(const std::shared_ptr<TreeNode<Pod>> &node, const QModelIndex &index, int role) const override
     {
         if (role != Qt::DisplayRole)
             return {};
         if (index.column() == 0)
-            return value.label;
+            return node->payload().label;
         if (index.column() == 1)
-            return value.id;
+            return node->payload().id;
         return {};
     }
 };
 
 using cute_tests::NonDefault;
 
-class NonDefaultTreeModel : public TreeModel<TreeNode<NonDefault>>
+class NonDefaultTreeModel : public TreeModel<NonDefault>
 {
 public:
-    using TreeModel<TreeNode<NonDefault>>::TreeModel;
-    using TreeModel<TreeNode<NonDefault>>::data;
+    using TreeModel<NonDefault>::TreeModel;
+    using TreeModel<NonDefault>::data;
 
-    QVariant data(const NonDefault &value, const QModelIndex &index, int role) const override
+    QVariant data(const std::shared_ptr<TreeNode<NonDefault>> &node, const QModelIndex &index, int role) const override
     {
         if (index.column() != 0)
             return {};
         if (role == Qt::DisplayRole)
-            return value.value;
+            return node->payload().value;
         return {};
     }
 };
 
-class DroppingTreeModel : public TreeModel<TreeNode<QString>>
+class DroppingTreeModel : public TreeModel<QString>
 {
 public:
-    using TreeModel<TreeNode<QString>>::TreeModel;
-    using TreeModel<TreeNode<QString>>::data;
+    using TreeModel<QString>::TreeModel;
+    using TreeModel<QString>::data;
 
-    QVariant data(const QString &value, const QModelIndex &index, int role) const override
+    QVariant data(const std::shared_ptr<TreeNode<QString>> &node, const QModelIndex &index, int role) const override
     {
         if (index.column() != 0)
             return {};
         if (role == Qt::DisplayRole)
-            return value;
+            return node->payload();
         return {};
     }
 
-    bool canDropOnElement(const QString &element, const QModelIndex &index,
+    bool canDropOnElement(const std::shared_ptr<TreeNode<QString>> &node, const QModelIndex &index,
                           Qt::DropAction action, const QMimeData *data) const override
     {
-        lastDropOnElement = element;
+        lastDropOnElement = node->payload();
         lastDropOnIndex = index;
         lastDropOnAction = action;
         lastDropOnText = data ? std::optional<QString>(data->text()) : std::nullopt;
@@ -123,10 +123,25 @@ public:
     mutable std::optional<QString> lastDropOnText;
 };
 
+class ExposedStringTreeModel : public StringTreeModel
+{
+public:
+    using StringTreeModel::StringTreeModel;
+    using TreeModel<QString>::setStorageValue;
+    using TreeModel<QString>::getStorageValue;
+};
+
 class StringTreeModelTest : public ::testing::Test
 {
 protected:
     StringTreeModel model;
+    QAbstractItemModelTester tester{&model, Reporting::Fatal};
+};
+
+class ExposedStringTreeModelTest : public ::testing::Test
+{
+protected:
+    ExposedStringTreeModel model;
     QAbstractItemModelTester tester{&model, Reporting::Fatal};
 };
 
@@ -322,18 +337,6 @@ TEST(TreeNodeDetached, SetPayloadOnFreshNodeIsSilent)
     EXPECT_EQ(fresh->model(), nullptr);
 }
 
-TEST_F(StringTreeModelTest, SetDataValueRoleRoutesThroughSetStorageValue)
-{
-    model.root()->push_back_child(makeStringNode(QStringLiteral("a")));
-
-    QSignalSpy changedSpy(&model, &QAbstractItemModel::dataChanged);
-    ASSERT_TRUE(model.setData(model.index(0, 0), QStringLiteral("b"), ValueRole));
-
-    EXPECT_EQ(model.root()->child(0)->payload(), QStringLiteral("b"));
-    ASSERT_EQ(changedSpy.count(), 1);
-    EXPECT_EQ(model.index(0, 0).data(ValueRole).toString(), QStringLiteral("b"));
-}
-
 TEST_F(StringTreeModelTest, EraseChildEmitsRowsRemovedAndDetachesSubtree)
 {
     auto a = makeStringNode(QStringLiteral("a"));
@@ -508,9 +511,11 @@ TEST_F(StringTreeModelTest, ModelTraversalVisitsDepthFirst)
     model.root()->push_back_child(b);
 
     std::vector<QString> seen;
-    cute::forEachIndex<QString>(
+    cute::forEachIndex<std::shared_ptr<TreeNode<QString>>>(
         model,
-        [&](const QString &value, const QModelIndex &) { seen.push_back(value); },
+        [&](const std::shared_ptr<TreeNode<QString>> &node, const QModelIndex &) {
+            seen.push_back(node->payload());
+        },
         cute::ColumnPolicy::FirstColumnOnly);
 
     EXPECT_EQ(seen, (std::vector<QString>{
@@ -520,9 +525,9 @@ TEST_F(StringTreeModelTest, ModelTraversalVisitsDepthFirst)
         QStringLiteral("b"),
         QStringLiteral("b1")}));
 
-    const auto matches = cute::indexesMatching<QString>(
+    const auto matches = cute::indexesMatching<std::shared_ptr<TreeNode<QString>>>(
         model,
-        [](const QString &v) { return v.startsWith(QStringLiteral("a")); },
+        [](const std::shared_ptr<TreeNode<QString>> &n) { return n->payload().startsWith(QStringLiteral("a")); },
         cute::ColumnPolicy::FirstColumnOnly);
     EXPECT_EQ(matches.size(), 3u);
 }
@@ -539,7 +544,7 @@ TEST_F(StringTreeModelTest, RefValueChangedFiresOnSetPayload)
     a->setPayload(QStringLiteral("b"));
 
     EXPECT_EQ(valueChangedSpy.count(), 1);
-    EXPECT_EQ(ref->getValue(), QStringLiteral("b"));
+    EXPECT_EQ(ref->getValue()->payload(), QStringLiteral("b"));
 }
 
 TEST_F(StringTreeModelTest, RefSignalsHierarchyChangedAndDestroyed)
@@ -716,20 +721,15 @@ TEST_F(StringTreeModelTest, SetPayloadOnRootIsSilent)
     EXPECT_EQ(model.root()->childCount(), 0);
 }
 
-TEST_F(StringTreeModelTest, RefSetValueUpdatesPayloadAndEmitsValueChanged)
+TEST_F(StringTreeModelTest, RefValueIsTheNodeItself)
 {
     auto child = makeStringNode(QStringLiteral("a"));
     model.root()->push_back_child(child);
 
     auto ref = model.getRef<>(child->modelIndex(0));
     ASSERT_NE(ref, nullptr);
-    QSignalSpy valueChangedSpy(ref.get(), &cute::RefBase::valueChanged);
-
-    ref->setValue(QStringLiteral("b"));
-
-    EXPECT_EQ(valueChangedSpy.count(), 1);
-    EXPECT_EQ(child->payload(), QStringLiteral("b"));
-    EXPECT_EQ(ref->getValue(), QStringLiteral("b"));
+    EXPECT_EQ(ref->getValue().get(), child.get());
+    EXPECT_EQ(ref->getValue()->payload(), QStringLiteral("a"));
 }
 
 TEST_F(StringTreeModelTest, ReattachDetachedSubtreeRestoresFullStructure)
@@ -755,4 +755,168 @@ TEST_F(StringTreeModelTest, ReattachDetachedSubtreeRestoresFullStructure)
 
     inner->setPayload(QStringLiteral("inner-updated"));
     EXPECT_EQ(inner->payload(), QStringLiteral("inner-updated"));
+}
+
+TEST_F(ExposedStringTreeModelTest, SetStorageValueReplacesNodeAtValidIndex)
+{
+    auto original = makeStringNode(QStringLiteral("original"));
+    model.root()->push_back_child(original);
+
+    auto replacement = makeStringNode(QStringLiteral("replacement"));
+    const QModelIndex idx = model.index(0, 0);
+    model.setStorageValue(idx, replacement);
+
+    EXPECT_EQ(model.root()->child(0), replacement);
+    EXPECT_EQ(replacement->model(), &model);
+    EXPECT_EQ(replacement->parent(), model.root());
+    EXPECT_EQ(replacement->indexInParent(), 0);
+    EXPECT_EQ(model.index(0, 0).data(Qt::DisplayRole).toString(),
+              QStringLiteral("replacement"));
+}
+
+TEST_F(ExposedStringTreeModelTest, SetStorageValueDetachesOldNode)
+{
+    auto original = makeStringNode(QStringLiteral("original"));
+    auto originalChild = makeStringNode(QStringLiteral("original-child"));
+    original->push_back_child(originalChild);
+    model.root()->push_back_child(original);
+
+    auto replacement = makeStringNode(QStringLiteral("replacement"));
+    model.setStorageValue(model.index(0, 0), replacement);
+
+    EXPECT_EQ(original->model(), nullptr);
+    EXPECT_EQ(originalChild->model(), nullptr);
+    EXPECT_EQ(original->parent(), nullptr);
+    EXPECT_EQ(original->indexInParent(), -1);
+}
+
+TEST_F(ExposedStringTreeModelTest, SetStorageValueEmitsRemoveThenInsert)
+{
+    auto original = makeStringNode(QStringLiteral("original"));
+    model.root()->push_back_child(original);
+
+    QSignalSpy removedSpy(&model, &QAbstractItemModel::rowsRemoved);
+    QSignalSpy insertedSpy(&model, &QAbstractItemModel::rowsInserted);
+
+    auto replacement = makeStringNode(QStringLiteral("replacement"));
+    model.setStorageValue(model.index(0, 0), replacement);
+
+    ASSERT_EQ(removedSpy.count(), 1);
+    ASSERT_EQ(insertedSpy.count(), 1);
+    EXPECT_EQ(removedSpy.at(0).at(1).toInt(), 0);
+    EXPECT_EQ(removedSpy.at(0).at(2).toInt(), 0);
+    EXPECT_EQ(insertedSpy.at(0).at(1).toInt(), 0);
+    EXPECT_EQ(insertedSpy.at(0).at(2).toInt(), 0);
+}
+
+TEST_F(ExposedStringTreeModelTest, SetStorageValueAdoptsReplacementChildren)
+{
+    model.root()->push_back_child(makeStringNode(QStringLiteral("original")));
+
+    auto replacement = makeStringNode(QStringLiteral("replacement"));
+    auto replacementChild = makeStringNode(QStringLiteral("replacement-child"));
+    replacement->push_back_child(replacementChild);
+
+    model.setStorageValue(model.index(0, 0), replacement);
+
+    EXPECT_EQ(replacement->model(), &model);
+    EXPECT_EQ(replacementChild->model(), &model);
+    EXPECT_EQ(model.rowCount(model.index(0, 0)), 1);
+    EXPECT_EQ(replacementChild->parent(), replacement);
+    EXPECT_EQ(replacementChild->indexInParent(), 0);
+}
+
+TEST_F(ExposedStringTreeModelTest, SetStorageValueOnInvalidIndexIsNoOp)
+{
+    model.root()->push_back_child(makeStringNode(QStringLiteral("a")));
+
+    QSignalSpy removedSpy(&model, &QAbstractItemModel::rowsRemoved);
+    QSignalSpy insertedSpy(&model, &QAbstractItemModel::rowsInserted);
+
+    auto replacement = makeStringNode(QStringLiteral("replacement"));
+    model.setStorageValue(QModelIndex{}, replacement);
+
+    EXPECT_EQ(removedSpy.count(), 0);
+    EXPECT_EQ(insertedSpy.count(), 0);
+    EXPECT_EQ(model.rowCount(), 1);
+    EXPECT_EQ(model.root()->child(0)->payload(), QStringLiteral("a"));
+    EXPECT_EQ(replacement->model(), nullptr);
+    EXPECT_EQ(replacement->parent(), nullptr);
+}
+
+TEST_F(ExposedStringTreeModelTest, SetStorageValueNullValueIsNoOp)
+{
+    auto original = makeStringNode(QStringLiteral("original"));
+    model.root()->push_back_child(original);
+
+    QSignalSpy removedSpy(&model, &QAbstractItemModel::rowsRemoved);
+    QSignalSpy insertedSpy(&model, &QAbstractItemModel::rowsInserted);
+
+    model.setStorageValue(model.index(0, 0), nullptr);
+
+    EXPECT_EQ(removedSpy.count(), 0);
+    EXPECT_EQ(insertedSpy.count(), 0);
+    EXPECT_EQ(model.rowCount(), 1);
+    EXPECT_EQ(model.root()->child(0), original);
+}
+
+TEST_F(ExposedStringTreeModelTest, SetStorageValuePreservesSiblings)
+{
+    model.root()->push_back_child(makeStringNode(QStringLiteral("a")));
+    auto middle = makeStringNode(QStringLiteral("b"));
+    model.root()->push_back_child(middle);
+    model.root()->push_back_child(makeStringNode(QStringLiteral("c")));
+
+    auto replacement = makeStringNode(QStringLiteral("B"));
+    model.setStorageValue(model.index(1, 0), replacement);
+
+    EXPECT_EQ(model.rowCount(), 3);
+    EXPECT_EQ(model.root()->child(0)->payload(), QStringLiteral("a"));
+    EXPECT_EQ(model.root()->child(1), replacement);
+    EXPECT_EQ(model.root()->child(2)->payload(), QStringLiteral("c"));
+    EXPECT_EQ(middle->parent(), nullptr);
+}
+
+TEST_F(ExposedStringTreeModelTest, SetStorageValueViaRefSetValue)
+{
+    auto original = makeStringNode(QStringLiteral("original"));
+    model.root()->push_back_child(original);
+
+    auto ref = model.getRef<>(model.index(0, 0));
+    ASSERT_NE(ref, nullptr);
+
+    auto replacement = makeStringNode(QStringLiteral("replacement"));
+    ref->setValue(replacement);
+
+    EXPECT_EQ(model.root()->child(0), replacement);
+    EXPECT_EQ(model.index(0, 0).data(Qt::DisplayRole).toString(),
+              QStringLiteral("replacement"));
+}
+
+TEST_F(ExposedStringTreeModelTest, SetStorageValueUnderNonRootParent)
+{
+    auto outer = makeStringNode(QStringLiteral("outer"));
+    auto inner = makeStringNode(QStringLiteral("inner"));
+    outer->push_back_child(inner);
+    model.root()->push_back_child(outer);
+
+    auto replacement = makeStringNode(QStringLiteral("replacement"));
+    const QModelIndex innerIdx = model.index(0, 0, outer->modelIndex(0));
+    model.setStorageValue(innerIdx, replacement);
+
+    EXPECT_EQ(outer->child(0), replacement);
+    EXPECT_EQ(replacement->parent(), outer);
+    EXPECT_EQ(replacement->model(), &model);
+    EXPECT_EQ(inner->parent(), nullptr);
+    EXPECT_EQ(inner->model(), nullptr);
+}
+
+TEST_F(ExposedStringTreeModelTest, GetStorageValueReturnsSharedPtrAtIndex)
+{
+    auto child = makeStringNode(QStringLiteral("a"));
+    model.root()->push_back_child(child);
+
+    const auto &stored = model.getStorageValue(model.index(0, 0));
+    EXPECT_EQ(stored, child);
+    EXPECT_EQ(stored.get(), child.get());
 }

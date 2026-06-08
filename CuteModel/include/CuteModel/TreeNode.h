@@ -14,7 +14,7 @@
 
 namespace cute {
 
-template <typename Node>
+template <typename T>
 class TreeModel;
 
 template <typename T>
@@ -23,13 +23,11 @@ class TreeNode : public std::enable_shared_from_this<TreeNode<T>>
 public:
     using payload_type = T;
 
-    template <typename First, typename... Rest,
-              typename = std::enable_if_t<
-                  !std::is_same_v<std::decay_t<First>, TreeNode>>>
-    explicit TreeNode(First &&first, Rest &&...rest)
+    template <typename... Args>
+    explicit TreeNode(Args &&...args)
     {
         ::new (static_cast<void *>(m_payloadStorage.data()))
-            T{std::forward<First>(first), std::forward<Rest>(rest)...};
+            T{std::forward<Args>(args)...};
     }
 
     TreeNode(const TreeNode &) = delete;
@@ -54,7 +52,7 @@ public:
         if (isRoot())
             return;
         if (m_model)
-            m_model->setStorageValue(modelIndex(0), std::move(value));
+            m_model->setPayloadAt(modelIndex(0), std::move(value));
         else
             constructPayload(std::move(value));
     }
@@ -76,7 +74,7 @@ public:
         return m_children;
     }
 
-    TreeModel<TreeNode<T>> *model() const noexcept { return m_model; }
+    TreeModel<T> *model() const noexcept { return m_model; }
 
     QModelIndex modelIndex(int column = 0) const
     {
@@ -162,11 +160,11 @@ public:
     }
 
 private:
-    friend class TreeModel<TreeNode<T>>;
+    friend class TreeModel<T>;
 
     struct RootTag {};
 
-    TreeNode(RootTag, TreeModel<TreeNode<T>> *model) : m_model(model) {}
+    TreeNode(RootTag, TreeModel<T> *model) : m_model(model) {}
 
     template <typename... CtorArgs>
     void constructPayload(CtorArgs &&...ctorArgs)
@@ -195,7 +193,7 @@ private:
             m_children[static_cast<std::size_t>(i)]->m_indexInParent = i;
     }
 
-    static void propagateModelDown(TreeNode<T> *node, TreeModel<TreeNode<T>> *model)
+    static void propagateModelDown(TreeNode<T> *node, TreeModel<T> *model)
     {
         node->m_model = model;
         for (auto &c : node->m_children)
@@ -216,7 +214,7 @@ private:
             c->clearModelInSubtree();
     }
 
-    TreeModel<TreeNode<T>> *m_model = nullptr;
+    TreeModel<T> *m_model = nullptr;
     std::weak_ptr<TreeNode<T>> m_parent;
     int m_indexInParent = -1;
     std::vector<std::shared_ptr<TreeNode<T>>> m_children;
