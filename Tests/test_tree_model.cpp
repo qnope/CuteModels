@@ -29,11 +29,11 @@ namespace {
 
 using Reporting = QAbstractItemModelTester::FailureReportingMode;
 
-class StringTreeModel : public TreeModel<QString>
+class StringTreeModel : public TreeModel<std::shared_ptr<TreeNode<QString>>>
 {
 public:
-    using TreeModel<QString>::TreeModel;
-    using TreeModel<QString>::data;
+    using TreeModel<std::shared_ptr<TreeNode<QString>>>::TreeModel;
+    using TreeModel<std::shared_ptr<TreeNode<QString>>>::data;
 
     QVariant data(const std::shared_ptr<TreeNode<QString>> &node, const QModelIndex &index, int role) const override
     {
@@ -56,11 +56,11 @@ bool operator==(const Pod &a, const Pod &b)
     return a.id == b.id && a.label == b.label;
 }
 
-class MultiColumnTreeModel : public TreeModel<Pod>
+class MultiColumnTreeModel : public TreeModel<std::shared_ptr<TreeNode<Pod>>>
 {
 public:
-    using TreeModel<Pod>::TreeModel;
-    using TreeModel<Pod>::data;
+    using TreeModel<std::shared_ptr<TreeNode<Pod>>>::TreeModel;
+    using TreeModel<std::shared_ptr<TreeNode<Pod>>>::data;
 
     QVariant data(const std::shared_ptr<TreeNode<Pod>> &node, const QModelIndex &index, int role) const override
     {
@@ -76,11 +76,11 @@ public:
 
 using cute_tests::NonDefault;
 
-class NonDefaultTreeModel : public TreeModel<NonDefault>
+class NonDefaultTreeModel : public TreeModel<std::shared_ptr<TreeNode<NonDefault>>>
 {
 public:
-    using TreeModel<NonDefault>::TreeModel;
-    using TreeModel<NonDefault>::data;
+    using TreeModel<std::shared_ptr<TreeNode<NonDefault>>>::TreeModel;
+    using TreeModel<std::shared_ptr<TreeNode<NonDefault>>>::data;
 
     QVariant data(const std::shared_ptr<TreeNode<NonDefault>> &node, const QModelIndex &index, int role) const override
     {
@@ -92,11 +92,11 @@ public:
     }
 };
 
-class DroppingTreeModel : public TreeModel<QString>
+class DroppingTreeModel : public TreeModel<std::shared_ptr<TreeNode<QString>>>
 {
 public:
-    using TreeModel<QString>::TreeModel;
-    using TreeModel<QString>::data;
+    using TreeModel<std::shared_ptr<TreeNode<QString>>>::TreeModel;
+    using TreeModel<std::shared_ptr<TreeNode<QString>>>::data;
 
     QVariant data(const std::shared_ptr<TreeNode<QString>> &node, const QModelIndex &index, int role) const override
     {
@@ -127,8 +127,8 @@ class ExposedStringTreeModel : public StringTreeModel
 {
 public:
     using StringTreeModel::StringTreeModel;
-    using TreeModel<QString>::setStorageValue;
-    using TreeModel<QString>::getStorageValue;
+    using TreeModel<std::shared_ptr<TreeNode<QString>>>::setStorageValue;
+    using TreeModel<std::shared_ptr<TreeNode<QString>>>::getStorageValue;
 };
 
 class StringTreeModelTest : public ::testing::Test

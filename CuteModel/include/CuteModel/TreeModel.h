@@ -16,13 +16,13 @@
 
 namespace cute {
 
-template <typename T>
-class TreeModel : public BaseModel<std::shared_ptr<TreeNode<T>>>
+template <typename NodePtr>
+class TreeModel : public BaseModel<NodePtr>
 {
 public:
-    using payload_type = T;
-    using node_type = TreeNode<T>;
-    using node_ptr = std::shared_ptr<node_type>;
+    using node_ptr = NodePtr;
+    using node_type = typename NodePtr::element_type;
+    using payload_type = typename node_type::payload_type;
 
     explicit TreeModel(QObject *parent = nullptr)
         : BaseModel<node_ptr>(parent)
@@ -152,7 +152,7 @@ protected:
     }
 
 private:
-    friend class TreeNode<T>;
+    friend node_type;
 
     void setPayloadAt(const QModelIndex &index, payload_type value)
     {
