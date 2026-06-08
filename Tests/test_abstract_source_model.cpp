@@ -1,4 +1,4 @@
-#include "CuteModel/BaseModel.h"
+#include "CuteModel/AbstractSourceModel.h"
 #include "CuteModel/ValueRole.h"
 
 #include <gtest/gtest.h>
@@ -13,15 +13,15 @@
 
 #include <optional>
 
-using cute::BaseModel;
+using cute::AbstractSourceModel;
 using cute::ValueRole;
 
 namespace {
 
-class SingleCellModel : public BaseModel<int>
+class SingleCellModel : public AbstractSourceModel<int>
 {
 public:
-    using BaseModel<int>::BaseModel;
+    using AbstractSourceModel<int>::AbstractSourceModel;
 
     int rowCount(const QModelIndex &parent = QModelIndex()) const override
     {
@@ -65,7 +65,7 @@ private:
     int m_value = 0;
 };
 
-class BaseModelTest : public ::testing::Test
+class AbstractSourceModelTest : public ::testing::Test
 {
 protected:
     SingleCellModel model;
@@ -83,10 +83,10 @@ static_assert(!cute::is_compatible_with_value_role_v<NoDefault>,
               "NoDefault must be incompatible with ValueRole for this fixture "
               "to exercise the disabled-ValueRole path");
 
-class NoValueRoleModel : public BaseModel<NoDefault>
+class NoValueRoleModel : public AbstractSourceModel<NoDefault>
 {
 public:
-    using BaseModel<NoDefault>::BaseModel;
+    using AbstractSourceModel<NoDefault>::AbstractSourceModel;
 
     int rowCount(const QModelIndex &parent = QModelIndex()) const override
     {
@@ -135,10 +135,10 @@ protected:
     QAbstractItemModelTester tester{&model, QAbstractItemModelTester::FailureReportingMode::Fatal};
 };
 
-class TwoColumnModel : public BaseModel<int>
+class TwoColumnModel : public AbstractSourceModel<int>
 {
 public:
-    using BaseModel<int>::BaseModel;
+    using AbstractSourceModel<int>::AbstractSourceModel;
 
     int rowCount(const QModelIndex &parent = QModelIndex()) const override
     {
@@ -182,7 +182,7 @@ protected:
     QAbstractItemModelTester tester{&model, QAbstractItemModelTester::FailureReportingMode::Fatal};
 };
 
-// Overrides the per-element flags customization point to prove BaseModel hands
+// Overrides the per-element flags customization point to prove AbstractSourceModel hands
 // it the stored value and the full index (not just the column).
 class CustomFlagsModel : public TwoColumnModel
 {
@@ -201,12 +201,12 @@ public:
 
 }
 
-TEST_F(BaseModelTest, ValueRoleReadsStoredValue)
+TEST_F(AbstractSourceModelTest, ValueRoleReadsStoredValue)
 {
     EXPECT_EQ(model.index(0, 0).data(ValueRole).toInt(), 0);
 }
 
-TEST_F(BaseModelTest, ValueRoleWritesToStorage)
+TEST_F(AbstractSourceModelTest, ValueRoleWritesToStorage)
 {
     QSignalSpy changedSpy(&model, &QAbstractItemModel::dataChanged);
 
@@ -221,7 +221,7 @@ TEST_F(BaseModelTest, ValueRoleWritesToStorage)
     EXPECT_TRUE(args.at(2).value<QList<int>>().isEmpty());
 }
 
-TEST_F(BaseModelTest, SetDataRejectsInvalidVariant)
+TEST_F(AbstractSourceModelTest, SetDataRejectsInvalidVariant)
 {
     QSignalSpy changedSpy(&model, &QAbstractItemModel::dataChanged);
 
@@ -230,7 +230,7 @@ TEST_F(BaseModelTest, SetDataRejectsInvalidVariant)
     EXPECT_EQ(changedSpy.count(), 0);
 }
 
-TEST_F(BaseModelTest, SetDataWithUnsupportedRoleReturnsFalse)
+TEST_F(AbstractSourceModelTest, SetDataWithUnsupportedRoleReturnsFalse)
 {
     QSignalSpy changedSpy(&model, &QAbstractItemModel::dataChanged);
 
@@ -242,14 +242,14 @@ TEST_F(BaseModelTest, SetDataWithUnsupportedRoleReturnsFalse)
     EXPECT_EQ(model.storage(), 0);
 }
 
-TEST_F(BaseModelTest, RoleNamesAdvertisesValueRole)
+TEST_F(AbstractSourceModelTest, RoleNamesAdvertisesValueRole)
 {
     const auto names = model.roleNames();
     ASSERT_TRUE(names.contains(ValueRole));
     EXPECT_EQ(names.value(ValueRole), QByteArrayLiteral("value"));
 }
 
-TEST_F(BaseModelTest, DefaultMimeDataIsNull)
+TEST_F(AbstractSourceModelTest, DefaultMimeDataIsNull)
 {
     EXPECT_EQ(model.mimeData({model.index(0, 0)}), nullptr);
 }
@@ -298,7 +298,7 @@ TEST_F(TwoColumnModelTest, RootFlagsAreSettableAndReturnedForInvalidIndex)
     EXPECT_TRUE(model.flags(model.index(0, 0)) & Qt::ItemIsSelectable);
 }
 
-TEST(BaseModelFlags, OverridenFlagsReceiveValueAndIndex)
+TEST(AbstractSourceModelFlags, OverridenFlagsReceiveValueAndIndex)
 {
     CustomFlagsModel model;
     QAbstractItemModelTester tester{&model, QAbstractItemModelTester::FailureReportingMode::Fatal};

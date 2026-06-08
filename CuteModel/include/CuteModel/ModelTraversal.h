@@ -1,6 +1,6 @@
 #pragma once
 
-#include "CuteModel/BaseModel.h"
+#include "CuteModel/AbstractSourceModel.h"
 
 #include <QModelIndex>
 
@@ -16,7 +16,7 @@ enum class ColumnPolicy
 };
 
 template <typename T, typename Visitor>
-void forEachIndex(const BaseModel<T> &model, Visitor &&visit,
+void forEachIndex(const AbstractSourceModel<T> &model, Visitor &&visit,
                   ColumnPolicy columns = ColumnPolicy::AllColumns,
                   const QModelIndex &parent = QModelIndex())
 {
@@ -40,7 +40,7 @@ void forEachIndex(const BaseModel<T> &model, Visitor &&visit,
 }
 
 template <typename T, typename Predicate>
-std::vector<QModelIndex> indexesMatching(const BaseModel<T> &model, Predicate &&pred,
+std::vector<QModelIndex> indexesMatching(const AbstractSourceModel<T> &model, Predicate &&pred,
                                          ColumnPolicy columns = ColumnPolicy::AllColumns,
                                          const QModelIndex &parent = QModelIndex())
 {
