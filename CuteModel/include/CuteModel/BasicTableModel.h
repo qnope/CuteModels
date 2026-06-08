@@ -1,6 +1,6 @@
 #pragma once
 
-#include "CuteModel/BaseModel.h"
+#include "CuteModel/AbstractSourceModel.h"
 #include "CuteModel/ItemProxy.h"
 #include "CuteModel/Table.h"
 #include "CuteModel/ValueRole.h"
@@ -18,10 +18,10 @@
 namespace cute {
 
 template <typename T>
-class BasicTableModel : public BaseModel<T>
+class BasicTableModel : public AbstractSourceModel<T>
 {
 public:
-    explicit BasicTableModel(QObject *parent = nullptr) : BaseModel<T>(parent) {}
+    explicit BasicTableModel(QObject *parent = nullptr) : AbstractSourceModel<T>(parent) {}
 
     BasicTableModel(int rows, int columns, QObject *parent = nullptr)
         : BasicTableModel(rows, columns, T(), parent)
@@ -29,7 +29,7 @@ public:
 
     BasicTableModel(int rows, int columns, const T &defaultValue,
                     QObject *parent = nullptr)
-        : BaseModel<T>(parent)
+        : AbstractSourceModel<T>(parent)
         , m_table(rows, columns, defaultValue)
     {}
 
