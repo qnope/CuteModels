@@ -15,6 +15,7 @@ target_sources(CuteModel
             include/CuteModel/ItemProxy.h
             include/CuteModel/RangeList.h
             include/CuteModel/Exceptions.h
+            include/CuteModel/ValueModelAccessor.h
             include/CuteModel/AbstractSourceModel.h
             include/CuteModel/ModelTraversal.h
             include/CuteModel/SelectionModel.h
