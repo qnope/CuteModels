@@ -29,11 +29,11 @@ namespace {
 
 using Reporting = QAbstractItemModelTester::FailureReportingMode;
 
-class StringTreeModel : public TreeModel<QString>
+class StringTreeModel : public TreeModel<TreeNode<QString>>
 {
 public:
-    using TreeModel<QString>::TreeModel;
-    using TreeModel<QString>::data;
+    using TreeModel<TreeNode<QString>>::TreeModel;
+    using TreeModel<TreeNode<QString>>::data;
 
     QVariant data(const QString &value, const QModelIndex &index, int role) const override
     {
@@ -56,11 +56,11 @@ bool operator==(const Pod &a, const Pod &b)
     return a.id == b.id && a.label == b.label;
 }
 
-class MultiColumnTreeModel : public TreeModel<Pod>
+class MultiColumnTreeModel : public TreeModel<TreeNode<Pod>>
 {
 public:
-    using TreeModel<Pod>::TreeModel;
-    using TreeModel<Pod>::data;
+    using TreeModel<TreeNode<Pod>>::TreeModel;
+    using TreeModel<TreeNode<Pod>>::data;
 
     QVariant data(const Pod &value, const QModelIndex &index, int role) const override
     {
@@ -76,11 +76,11 @@ public:
 
 using cute_tests::NonDefault;
 
-class NonDefaultTreeModel : public TreeModel<NonDefault>
+class NonDefaultTreeModel : public TreeModel<TreeNode<NonDefault>>
 {
 public:
-    using TreeModel<NonDefault>::TreeModel;
-    using TreeModel<NonDefault>::data;
+    using TreeModel<TreeNode<NonDefault>>::TreeModel;
+    using TreeModel<TreeNode<NonDefault>>::data;
 
     QVariant data(const NonDefault &value, const QModelIndex &index, int role) const override
     {
@@ -92,11 +92,11 @@ public:
     }
 };
 
-class DroppingTreeModel : public TreeModel<QString>
+class DroppingTreeModel : public TreeModel<TreeNode<QString>>
 {
 public:
-    using TreeModel<QString>::TreeModel;
-    using TreeModel<QString>::data;
+    using TreeModel<TreeNode<QString>>::TreeModel;
+    using TreeModel<TreeNode<QString>>::data;
 
     QVariant data(const QString &value, const QModelIndex &index, int role) const override
     {

@@ -14,7 +14,7 @@
 
 namespace cute {
 
-template <typename T>
+template <typename Node>
 class TreeModel;
 
 template <typename T>
@@ -76,7 +76,7 @@ public:
         return m_children;
     }
 
-    TreeModel<T> *model() const noexcept { return m_model; }
+    TreeModel<TreeNode<T>> *model() const noexcept { return m_model; }
 
     QModelIndex modelIndex(int column = 0) const
     {
@@ -162,11 +162,11 @@ public:
     }
 
 private:
-    friend class TreeModel<T>;
+    friend class TreeModel<TreeNode<T>>;
 
     struct RootTag {};
 
-    TreeNode(RootTag, TreeModel<T> *model) : m_model(model) {}
+    TreeNode(RootTag, TreeModel<TreeNode<T>> *model) : m_model(model) {}
 
     template <typename... CtorArgs>
     void constructPayload(CtorArgs &&...ctorArgs)
@@ -195,7 +195,7 @@ private:
             m_children[static_cast<std::size_t>(i)]->m_indexInParent = i;
     }
 
-    static void propagateModelDown(TreeNode<T> *node, TreeModel<T> *model)
+    static void propagateModelDown(TreeNode<T> *node, TreeModel<TreeNode<T>> *model)
     {
         node->m_model = model;
         for (auto &c : node->m_children)
@@ -216,7 +216,7 @@ private:
             c->clearModelInSubtree();
     }
 
-    TreeModel<T> *m_model = nullptr;
+    TreeModel<TreeNode<T>> *m_model = nullptr;
     std::weak_ptr<TreeNode<T>> m_parent;
     int m_indexInParent = -1;
     std::vector<std::shared_ptr<TreeNode<T>>> m_children;

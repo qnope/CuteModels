@@ -16,22 +16,22 @@
 
 namespace cute {
 
-template <typename T>
-class TreeModel : public BaseModel<T>
+template <typename Node>
+class TreeModel : public BaseModel<typename Node::payload_type>
 {
 public:
-    using Node = TreeNode<T>;
+    using T = typename Node::payload_type;
 
     explicit TreeModel(QObject *parent = nullptr)
         : BaseModel<T>(parent)
-        , m_root(std::shared_ptr<TreeNode<T>>(
-              new TreeNode<T>(typename TreeNode<T>::RootTag{}, this)))
+        , m_root(std::shared_ptr<Node>(
+              new Node(typename Node::RootTag{}, this)))
     {}
 
     explicit TreeModel(QStringList headers, QObject *parent = nullptr)
         : BaseModel<T>(parent)
-        , m_root(std::shared_ptr<TreeNode<T>>(
-              new TreeNode<T>(typename TreeNode<T>::RootTag{}, this)))
+        , m_root(std::shared_ptr<Node>(
+              new Node(typename Node::RootTag{}, this)))
         , m_headers(headers.isEmpty() ? QStringList{QString()} : std::move(headers))
     {}
 
@@ -90,10 +90,10 @@ public:
             return true;
 
         if constexpr (std::is_default_constructible_v<T>) {
-            std::vector<std::shared_ptr<TreeNode<T>>> fresh;
+            std::vector<std::shared_ptr<Node>> fresh;
             fresh.reserve(static_cast<std::size_t>(count));
             for (int i = 0; i < count; ++i)
-                fresh.push_back(std::make_shared<TreeNode<T>>(T{}));
+                fresh.push_back(std::make_shared<Node>(T{}));
             parentNode->insert_range(row, std::move(fresh));
             return true;
         } else {
@@ -119,8 +119,8 @@ public:
     {
         if (!index.isValid())
             return m_root;
-        auto *node = static_cast<TreeNode<T> *>(index.internalPointer());
-        return node->shared_from_this();
+        auto *node = static_cast<Node *>(index.internalPointer());
+        return std::static_pointer_cast<Node>(node->shared_from_this());
     }
 
     void clear()
@@ -128,7 +128,7 @@ public:
         if (m_root->m_children.empty())
             return;
         this->beginResetModel();
-        std::vector<std::shared_ptr<TreeNode<T>>> old;
+        std::vector<std::shared_ptr<Node>> old;
         old.swap(m_root->m_children);
         for (auto &c : old)
             c->detachSubtree();
