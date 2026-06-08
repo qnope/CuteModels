@@ -2,6 +2,7 @@
 
 #include "CuteModel/Exceptions.h"
 #include "CuteModel/RefBase.h"
+#include "CuteModel/ValueModelAccessor.h"
 #include "CuteModel/ValueRole.h"
 
 #include <QAbstractItemModel>
@@ -24,54 +25,10 @@
 namespace cute {
 
 template <typename T>
-class AbstractSourceModel : public QAbstractItemModel
+class AbstractSourceModel : public QAbstractItemModel, public ValueModelAccessor<T>
 {
 public:
     using QAbstractItemModel::QAbstractItemModel;
-
-    class Ref : public RefBase
-    {
-    public:
-        const T &getValue() const
-        {
-            if (!m_index.isValid() || !m_model)
-                throw NullObjectException(
-                    "AbstractSourceModel::Ref::getValue called on an invalidated reference");
-
-            return m_model->getStorageValue(m_index);
-        }
-
-        void setValue(const T &value)
-        {
-            if (!m_index.isValid() || !m_model)
-                throw NullObjectException(
-                    "AbstractSourceModel::Ref::setValue called on an invalidated reference");
-
-            m_model->setStorageValue(m_index, value);
-        }
-
-    protected:
-        Ref(AbstractSourceModel *model, QPersistentModelIndex index)
-            : RefBase(std::move(index))
-            , m_model(model)
-        {}
-
-        AbstractSourceModel *m_model;
-
-        friend class AbstractSourceModel;
-    };
-
-    template <typename R = Ref>
-    std::unique_ptr<R> getRef(const QModelIndex &index)
-    {
-        static_assert(std::is_base_of_v<Ref, R>,
-                      "getRef<R> requires R to derive from AbstractSourceModel<T>::Ref");
-
-        if (!index.isValid())
-            return nullptr;
-
-        return std::unique_ptr<R>(new R(this, QPersistentModelIndex(index)));
-    }
 
     virtual QString mimeTypeForValue() const
     {
@@ -117,7 +74,7 @@ public:
     {
         if (!checkIndex(index, CheckIndexOption::IndexIsValid))
             return;
-        const T &value = getStorageValue(index);
+        const T &value = this->getStorageValue(index);
         for (QModelRoleData &roleData : roleDataSpan) {
             if constexpr (is_compatible_with_value_role_v<T>) {
                 if (roleData.role() == ValueRole) {
@@ -147,7 +104,7 @@ public:
             if (!value.canConvert<T>())
                 return false;
 
-            setStorageValue(index, value.value<T>());
+            this->setStorageValue(index, value.value<T>());
             return true;
         } else {
             return false;
@@ -166,7 +123,7 @@ public:
     {
         if (!checkIndex(index, CheckIndexOption::IndexIsValid))
             return m_rootFlags;
-        return flags(getStorageValue(index), index);
+        return flags(this->getStorageValue(index), index);
     }
 
     virtual Qt::ItemFlags flags(const T &value, const QModelIndex &index) const
@@ -185,7 +142,7 @@ public:
             for (const QModelIndex &index : indexes) {
                 if (!checkIndex(index, CheckIndexOption::IndexIsValid))
                     continue;
-                values.push_back(getStorageValue(index));
+                values.push_back(this->getStorageValue(index));
             }
             if (values.empty())
                 return nullptr;
@@ -221,7 +178,7 @@ public:
                          int row, int column, const QModelIndex &parent) const final
     {
         if (parent.isValid() && row == -1)
-            return canDropOnElement(getStorageValue(parent), parent, action, data);
+            return canDropOnElement(this->getStorageValue(parent), parent, action, data);
         return canDropInsertion(row < 0 ? rowCount(parent) : row, column, parent,
                                 action, data);
     }
@@ -230,14 +187,10 @@ public:
                       int row, int column, const QModelIndex &parent) final
     {
         if (parent.isValid() && row == -1)
-            return dropOnElement(getStorageValue(parent), parent, action, data);
+            return dropOnElement(this->getStorageValue(parent), parent, action, data);
         return dropInsertion(row < 0 ? rowCount(parent) : row, column, parent,
                              action, data);
     }
-
-    virtual const T &getStorageValue(const QModelIndex &index) const = 0;
-
-    virtual void setStorageValue(const QModelIndex &index, T value) = 0;
 
 private:
     Qt::ItemFlags m_rootFlags = Qt::NoItemFlags;
