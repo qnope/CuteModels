@@ -180,24 +180,28 @@ public:
 
     QMimeData *mimeData(const QModelIndexList &indexes) const final
     {
-        std::vector<T> values;
-        for (const QModelIndex &index : indexes) {
-            if (!checkIndex(index, CheckIndexOption::IndexIsValid))
-                continue;
-            values.push_back(getStorageValue(index));
+        if constexpr (std::is_copy_constructible_v<T>) {
+            std::vector<T> values;
+            for (const QModelIndex &index : indexes) {
+                if (!checkIndex(index, CheckIndexOption::IndexIsValid))
+                    continue;
+                values.push_back(getStorageValue(index));
+            }
+            if (values.empty())
+                return nullptr;
+
+            QByteArray encoded;
+            QDataStream stream(&encoded, QIODevice::WriteOnly);
+            encodeMimeData(stream, values);
+            if (encoded.isEmpty())
+                return nullptr;
+
+            auto *mimeData = new QMimeData;
+            mimeData->setData(mimeTypeForValue(), encoded);
+            return mimeData;
+        } else {
+            return nullptr;
         }
-        if (values.empty())
-            return nullptr;
-
-        QByteArray encoded;
-        QDataStream stream(&encoded, QIODevice::WriteOnly);
-        encodeMimeData(stream, values);
-        if (encoded.isEmpty())
-            return nullptr;
-
-        auto *mimeData = new QMimeData;
-        mimeData->setData(mimeTypeForValue(), encoded);
-        return mimeData;
     }
 
     std::vector<T> valuesFromMimeData(const QMimeData *mimeData) const
