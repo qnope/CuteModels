@@ -29,7 +29,7 @@ public:
     explicit TreeNode(First &&first, Rest &&...rest)
     {
         ::new (static_cast<void *>(m_payloadStorage.data()))
-            T(std::forward<First>(first), std::forward<Rest>(rest)...);
+            T{std::forward<First>(first), std::forward<Rest>(rest)...};
     }
 
     TreeNode(const TreeNode &) = delete;
@@ -173,7 +173,7 @@ private:
     {
         payloadRef().~T();
         ::new (static_cast<void *>(m_payloadStorage.data()))
-            T(std::forward<CtorArgs>(ctorArgs)...);
+            T{std::forward<CtorArgs>(ctorArgs)...};
     }
 
     bool isRoot() const noexcept { return m_model && m_indexInParent < 0; }
