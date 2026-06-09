@@ -1,7 +1,8 @@
 #pragma once
 
-#include "CuteModel/AbstractSourceModel.h"
+#include "CuteModel/ValueModelAccessor.h"
 
+#include <QAbstractItemModel>
 #include <QModelIndex>
 
 #include <utility>
@@ -15,10 +16,12 @@ enum class ColumnPolicy
     AllColumns
 };
 
+namespace detail {
+
 template <typename T, typename Visitor>
-void forEachIndex(const AbstractSourceModel<T> &model, Visitor &&visit,
-                  ColumnPolicy columns = ColumnPolicy::AllColumns,
-                  const QModelIndex &parent = QModelIndex())
+void forEachIndexImpl(const QAbstractItemModel &model,
+                      const ValueModelAccessor<T> &accessor, Visitor &visit,
+                      ColumnPolicy columns, const QModelIndex &parent)
 {
     const int rows = model.rowCount(parent);
     const int columnCount = model.columnCount(parent);
@@ -30,23 +33,37 @@ void forEachIndex(const AbstractSourceModel<T> &model, Visitor &&visit,
             const QModelIndex idx = model.index(row, column, parent);
             if (!idx.isValid())
                 continue;
-            visit(model.getStorageValue(idx), idx);
+            visit(accessor.getStorageValue(idx), idx);
         }
 
         const QModelIndex childParent = model.index(row, 0, parent);
         if (childParent.isValid() && model.hasChildren(childParent))
-            forEachIndex(model, visit, columns, childParent);
+            forEachIndexImpl(model, accessor, visit, columns, childParent);
     }
 }
 
+}
+
+template <typename T, typename Visitor>
+void forEachIndex(const ValueModelAccessor<T> &accessor, Visitor &&visit,
+                  ColumnPolicy columns = ColumnPolicy::AllColumns,
+                  const QModelIndex &parent = QModelIndex())
+{
+    const auto *model = dynamic_cast<const QAbstractItemModel *>(&accessor);
+    if (!model)
+        return;
+    detail::forEachIndexImpl<T>(*model, accessor, visit, columns, parent);
+}
+
 template <typename T, typename Predicate>
-std::vector<QModelIndex> indexesMatching(const AbstractSourceModel<T> &model, Predicate &&pred,
+std::vector<QModelIndex> indexesMatching(const ValueModelAccessor<T> &accessor,
+                                         Predicate &&pred,
                                          ColumnPolicy columns = ColumnPolicy::AllColumns,
                                          const QModelIndex &parent = QModelIndex())
 {
     std::vector<QModelIndex> result;
     forEachIndex<T>(
-        model,
+        accessor,
         [&](const T &value, const QModelIndex &index) {
             if (pred(value))
                 result.push_back(index);
