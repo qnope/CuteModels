@@ -96,7 +96,7 @@ protected:
 
 TEST_F(SelectionModelListTest, ExposesModelAndMode)
 {
-    EXPECT_EQ(selection.sourceModel(), &model);
+    EXPECT_EQ(selection.model(), &model);
     EXPECT_EQ(selection.mode(), SelectionMode::List);
     EXPECT_TRUE(selection.selectedValues().empty());
     EXPECT_FALSE(selection.currentValue().has_value());
