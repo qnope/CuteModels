@@ -23,7 +23,8 @@ target_sources(CuteModel
             include/CuteModel/Table.h
             include/CuteModel/BasicTableModel.h
             include/CuteModel/TreeNode.h
-            include/CuteModel/TreeModel.h)
+            include/CuteModel/TreeModel.h
+            include/CuteModel/RowFilterProxyModel.h)
 
 target_compile_features(CuteModel PUBLIC cxx_std_17)
 
