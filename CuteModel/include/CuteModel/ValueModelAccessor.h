@@ -16,6 +16,8 @@ template <typename T>
 class ValueModelAccessor
 {
 public:
+    using value_type = T;
+
     virtual ~ValueModelAccessor() = default;
 
     class Ref : public RefBase
