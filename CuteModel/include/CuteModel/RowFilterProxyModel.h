@@ -27,14 +27,9 @@ public:
                                  QObject *parent = nullptr)
         : QSortFilterProxyModel(parent)
     {
-        setSourceModel(source); // remontée implicite AbstractSourceModel<T>* -> QAbstractItemModel*
+        setSourceModel(source);
     }
 
-    // Une seule surcharge. Un AbstractSourceModel<T>* passé par l'appelant est
-    // converti implicitement par la remontée de pointeur dérivé->base (pas de
-    // static_cast, pas de surcharge dédiée qui récurserait). Une source non
-    // nulle qui n'est pas un AbstractSourceModel<T> est une erreur de
-    // programmation -> exception.
     void setSourceModel(QAbstractItemModel *source) override
     {
         if (source) {
@@ -45,7 +40,7 @@ public:
         } else {
             m_source = nullptr;
         }
-        m_accessor = m_source; // AbstractSourceModel<T> EST-UN ValueModelAccessor<T>
+        m_accessor = m_source;
         QSortFilterProxyModel::setSourceModel(source);
     }
 
@@ -61,7 +56,6 @@ public:
 
     void clearFilter() { setFilterPredicate({}); }
 
-    // ValueModelAccessor<T> : on raisonne sur des index PROXY, on délègue à la source.
     const T &getStorageValue(const QModelIndex &index) const override
     {
         return m_accessor->getStorageValue(mapToSource(index));
