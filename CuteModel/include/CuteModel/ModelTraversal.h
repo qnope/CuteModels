@@ -15,38 +15,30 @@ enum class ColumnPolicy
     AllColumns
 };
 
-// A "cute model" is any type exposing a value_type and deriving from
-// AbstractSourceModel<value_type> -- AbstractSourceModel<T> itself today, and any
-// future Proxy<T> that derives from it tomorrow.
-template <typename M, typename = void>
-struct is_cute_model : std::false_type
+// A "cute model" for value type T is any model M deriving from AbstractSourceModel<T>
+// -- AbstractSourceModel<T> itself today, and any future Proxy<T> that derives from it.
+template <typename M, typename T>
+struct is_cute_model_T : std::is_base_of<AbstractSourceModel<T>, M>
 {
 };
 
-template <typename M>
-struct is_cute_model<M, std::void_t<typename M::value_type>>
-    : std::is_base_of<AbstractSourceModel<typename M::value_type>, M>
-{
-};
+template <typename M, typename T>
+constexpr bool is_cute_model_T_v = is_cute_model_T<M, T>::value;
 
-template <typename M>
-constexpr bool is_cute_model_v = is_cute_model<M>::value;
-
-template <typename Model, typename Visitor>
+template <typename T, typename Model, typename Visitor>
 void forEachIndex(const Model *model, Visitor &&visit,
                   ColumnPolicy columns = ColumnPolicy::AllColumns,
                   const QModelIndex &parent = QModelIndex())
 {
-    static_assert(is_cute_model_v<Model>,
-                  "forEachIndex requires a cute model: a type exposing value_type and "
-                  "deriving from AbstractSourceModel<value_type>");
+    static_assert(is_cute_model_T_v<Model, T>,
+                  "forEachIndex<T> requires a model deriving from AbstractSourceModel<T>");
 
     if (!model)
         return;
 
     // Access the value interface through the AbstractSourceModel base, where
     // getStorageValue is public (derived overrides may narrow it to protected).
-    const AbstractSourceModel<typename Model::value_type> *src = model;
+    const AbstractSourceModel<T> *src = model;
 
     const int rows = src->rowCount(parent);
     const int columnCount = src->columnCount(parent);
@@ -63,22 +55,20 @@ void forEachIndex(const Model *model, Visitor &&visit,
 
         const QModelIndex childParent = src->index(row, 0, parent);
         if (childParent.isValid() && src->hasChildren(childParent))
-            forEachIndex(model, visit, columns, childParent);
+            forEachIndex<T>(model, visit, columns, childParent);
     }
 }
 
-template <typename Model, typename Predicate>
+template <typename T, typename Model, typename Predicate>
 std::vector<QModelIndex> indexesMatching(const Model *model, Predicate &&pred,
                                          ColumnPolicy columns = ColumnPolicy::AllColumns,
                                          const QModelIndex &parent = QModelIndex())
 {
-    static_assert(is_cute_model_v<Model>,
-                  "indexesMatching requires a cute model: a type exposing value_type and "
-                  "deriving from AbstractSourceModel<value_type>");
+    static_assert(is_cute_model_T_v<Model, T>,
+                  "indexesMatching<T> requires a model deriving from AbstractSourceModel<T>");
 
-    using T = typename Model::value_type;
     std::vector<QModelIndex> result;
-    forEachIndex(
+    forEachIndex<T>(
         model,
         [&](const T &value, const QModelIndex &index) {
             if (pred(value))

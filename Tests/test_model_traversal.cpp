@@ -134,12 +134,12 @@ std::vector<int> valuesAt(const AbstractSourceModel<int> &model,
 
 }
 
-static_assert(cute::is_cute_model_v<IntListModel>,
-              "BasicListModel-derived models must satisfy is_cute_model");
-static_assert(cute::is_cute_model_v<IntTreeModel>,
-              "AbstractSourceModel-derived models must satisfy is_cute_model");
-static_assert(!cute::is_cute_model_v<int>,
-              "a plain value type must not satisfy is_cute_model");
+static_assert(cute::is_cute_model_T_v<IntListModel, int>,
+              "BasicListModel<int>-derived models are cute models for int");
+static_assert(cute::is_cute_model_T_v<IntTreeModel, int>,
+              "AbstractSourceModel<int>-derived models are cute models for int");
+static_assert(!cute::is_cute_model_T_v<IntListModel, QString>,
+              "a model is not a cute model for an unrelated value type");
 
 TEST(ModelTraversalTest, ForEachIndexVisitsListInOrder)
 {
@@ -151,7 +151,7 @@ TEST(ModelTraversalTest, ForEachIndexVisitsListInOrder)
 
     std::vector<int> values;
     std::vector<int> rows;
-    cute::forEachIndex(&model, [&](const int &value, const QModelIndex &index) {
+    cute::forEachIndex<int>(&model, [&](const int &value, const QModelIndex &index) {
         values.push_back(value);
         rows.push_back(index.row());
     });
@@ -167,7 +167,7 @@ TEST(ModelTraversalTest, IndexesMatchingFiltersByPredicate)
         model.push_back(value);
     QAbstractItemModelTester tester(&model, Reporting::Fatal);
 
-    const auto matches = cute::indexesMatching(
+    const auto matches = cute::indexesMatching<int>(
         &model, [](const int &value) { return value % 20 == 0; });
 
     ASSERT_EQ(matches.size(), 2u);
@@ -184,14 +184,14 @@ TEST(ModelTraversalTest, ColumnPolicyControlsVisitedColumns)
     QAbstractItemModelTester tester(&model, Reporting::Fatal);
 
     std::vector<int> allColumns;
-    cute::forEachIndex(
+    cute::forEachIndex<int>(
         &model,
         [&](const int &value, const QModelIndex &) { allColumns.push_back(value); },
         cute::ColumnPolicy::AllColumns);
     EXPECT_EQ(allColumns, (std::vector<int>{10, 10, 20, 20}));
 
     std::vector<int> firstColumn;
-    cute::forEachIndex(
+    cute::forEachIndex<int>(
         &model,
         [&](const int &value, const QModelIndex &) { firstColumn.push_back(value); },
         cute::ColumnPolicy::FirstColumnOnly);
@@ -205,12 +205,12 @@ TEST(ModelTraversalTest, IndexesMatchingHonoursColumnPolicy)
     model.push_back(20);
     QAbstractItemModelTester tester(&model, Reporting::Fatal);
 
-    const auto allColumns = cute::indexesMatching(
+    const auto allColumns = cute::indexesMatching<int>(
         &model, [](const int &value) { return value == 20; },
         cute::ColumnPolicy::AllColumns);
     EXPECT_EQ(allColumns.size(), 2u);
 
-    const auto firstColumn = cute::indexesMatching(
+    const auto firstColumn = cute::indexesMatching<int>(
         &model, [](const int &value) { return value == 20; },
         cute::ColumnPolicy::FirstColumnOnly);
     ASSERT_EQ(firstColumn.size(), 1u);
@@ -225,7 +225,7 @@ TEST(ModelTraversalTest, IndexesMatchingEmptyWhenNoneMatch)
     model.push_back(2);
     QAbstractItemModelTester tester(&model, Reporting::Fatal);
 
-    const auto matches = cute::indexesMatching(
+    const auto matches = cute::indexesMatching<int>(
         &model, [](const int &value) { return value > 100; });
 
     EXPECT_TRUE(matches.empty());
@@ -242,7 +242,7 @@ TEST(ModelTraversalTest, ForEachIndexRecursesIntoChildrenDepthFirst)
     QAbstractItemModelTester tester(&model, Reporting::Fatal);
 
     std::vector<int> values;
-    cute::forEachIndex(&model, [&](const int &value, const QModelIndex &) {
+    cute::forEachIndex<int>(&model, [&](const int &value, const QModelIndex &) {
         values.push_back(value);
     });
 
@@ -259,7 +259,7 @@ TEST(ModelTraversalTest, IndexesMatchingWalksWholeTree)
     model.addNode(b, 5);
     QAbstractItemModelTester tester(&model, Reporting::Fatal);
 
-    const auto even = cute::indexesMatching(
+    const auto even = cute::indexesMatching<int>(
         &model, [](const int &value) { return value % 2 == 0; });
 
     EXPECT_EQ(valuesAt(model, even), (std::vector<int>{4, 2}));

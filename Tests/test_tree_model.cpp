@@ -511,7 +511,7 @@ TEST_F(StringTreeModelTest, ModelTraversalVisitsDepthFirst)
     model.root()->push_back_child(b);
 
     std::vector<QString> seen;
-    cute::forEachIndex(
+    cute::forEachIndex<std::shared_ptr<TreeNode<QString>>>(
         &model,
         [&](const std::shared_ptr<TreeNode<QString>> &node, const QModelIndex &) {
             seen.push_back(node->payload());
@@ -525,7 +525,7 @@ TEST_F(StringTreeModelTest, ModelTraversalVisitsDepthFirst)
         QStringLiteral("b"),
         QStringLiteral("b1")}));
 
-    const auto matches = cute::indexesMatching(
+    const auto matches = cute::indexesMatching<std::shared_ptr<TreeNode<QString>>>(
         &model,
         [](const std::shared_ptr<TreeNode<QString>> &n) { return n->payload().startsWith(QStringLiteral("a")); },
         cute::ColumnPolicy::FirstColumnOnly);

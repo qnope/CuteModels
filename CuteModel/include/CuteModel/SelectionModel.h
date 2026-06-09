@@ -141,7 +141,7 @@ private:
         const ColumnPolicy columns = (m_mode == SelectionMode::List)
                                          ? ColumnPolicy::FirstColumnOnly
                                          : ColumnPolicy::AllColumns;
-        return indexesMatching(
+        return indexesMatching<T>(
             m_model, [&value](const T &candidate) { return candidate == value; },
             columns);
     }
