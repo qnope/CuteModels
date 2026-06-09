@@ -44,21 +44,25 @@ void forEachIndex(const Model *model, Visitor &&visit,
     if (!model)
         return;
 
-    const int rows = model->rowCount(parent);
-    const int columnCount = model->columnCount(parent);
+    // Access the value interface through the AbstractSourceModel base, where
+    // getStorageValue is public (derived overrides may narrow it to protected).
+    const AbstractSourceModel<typename Model::value_type> *src = model;
+
+    const int rows = src->rowCount(parent);
+    const int columnCount = src->columnCount(parent);
     const int lastColumn = (columns == ColumnPolicy::FirstColumnOnly)
                                ? (columnCount > 0 ? 1 : 0)
                                : columnCount;
     for (int row = 0; row < rows; ++row) {
         for (int column = 0; column < lastColumn; ++column) {
-            const QModelIndex idx = model->index(row, column, parent);
+            const QModelIndex idx = src->index(row, column, parent);
             if (!idx.isValid())
                 continue;
-            visit(model->getStorageValue(idx), idx);
+            visit(src->getStorageValue(idx), idx);
         }
 
-        const QModelIndex childParent = model->index(row, 0, parent);
-        if (childParent.isValid() && model->hasChildren(childParent))
+        const QModelIndex childParent = src->index(row, 0, parent);
+        if (childParent.isValid() && src->hasChildren(childParent))
             forEachIndex(model, visit, columns, childParent);
     }
 }
