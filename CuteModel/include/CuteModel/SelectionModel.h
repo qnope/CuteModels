@@ -57,7 +57,6 @@ public:
         , m_mode(mode)
     {}
 
-    QAbstractItemModel *sourceModel() const { return m_model; }
     SelectionMode mode() const { return m_mode; }
 
     std::vector<T> selectedValues() const
