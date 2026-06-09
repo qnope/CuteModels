@@ -16,24 +16,17 @@ enum class ColumnPolicy
     AllColumns
 };
 
-// A "cute model" is any type exposing both the QAbstractItemModel navigation surface
-// (rowCount/columnCount/index/hasChildren) and the ValueModelAccessor value surface
-// (value_type + getStorageValue). Detecting members rather than a concrete base keeps
-// traversal open to AbstractSourceModel<T> today and a future Proxy<T> tomorrow.
+// A "cute model" is any type exposing a value_type and deriving from
+// AbstractSourceModel<value_type> -- AbstractSourceModel<T> itself today, and any
+// future Proxy<T> that derives from it tomorrow.
 template <typename M, typename = void>
 struct is_cute_model : std::false_type
 {
 };
 
 template <typename M>
-struct is_cute_model<
-    M, std::void_t<typename M::value_type,
-                   decltype(std::declval<const M &>().rowCount(std::declval<QModelIndex>())),
-                   decltype(std::declval<const M &>().columnCount(std::declval<QModelIndex>())),
-                   decltype(std::declval<const M &>().index(0, 0, std::declval<QModelIndex>())),
-                   decltype(std::declval<const M &>().hasChildren(std::declval<QModelIndex>())),
-                   decltype(std::declval<const M &>().getStorageValue(std::declval<QModelIndex>()))>>
-    : std::true_type
+struct is_cute_model<M, std::void_t<typename M::value_type>>
+    : std::is_base_of<AbstractSourceModel<typename M::value_type>, M>
 {
 };
 
