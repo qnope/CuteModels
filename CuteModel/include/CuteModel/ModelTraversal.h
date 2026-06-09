@@ -50,19 +50,30 @@ void forEachIndex(const AbstractSourceModel<T> &model, Visitor &&visit,
 }
 
 template <typename T, typename Predicate>
-std::vector<QModelIndex> indexesMatching(const AbstractSourceModel<T> &model, Predicate &&pred,
+std::vector<QModelIndex> indexesMatching(const ValueModelAccessor<T> &accessor,
+                                         const QAbstractItemModel &model, Predicate &&pred,
                                          ColumnPolicy columns = ColumnPolicy::AllColumns,
                                          const QModelIndex &parent = QModelIndex())
 {
     std::vector<QModelIndex> result;
     forEachIndex<T>(
-        model,
+        accessor, model,
         [&](const T &value, const QModelIndex &index) {
             if (pred(value))
                 result.push_back(index);
         },
         columns, parent);
     return result;
+}
+
+template <typename T, typename Predicate>
+std::vector<QModelIndex> indexesMatching(const AbstractSourceModel<T> &model, Predicate &&pred,
+                                         ColumnPolicy columns = ColumnPolicy::AllColumns,
+                                         const QModelIndex &parent = QModelIndex())
+{
+    return indexesMatching<T>(static_cast<const ValueModelAccessor<T> &>(model),
+                              static_cast<const QAbstractItemModel &>(model),
+                              std::forward<Predicate>(pred), columns, parent);
 }
 
 }
