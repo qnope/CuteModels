@@ -2,6 +2,7 @@
 
 #include "CuteModel/AbstractSourceModel.h"
 #include "CuteModel/ModelTraversal.h"
+#include "CuteModel/ValueModelAccessor.h"
 
 #include <QItemSelection>
 #include <QItemSelectionModel>
@@ -51,11 +52,12 @@ public:
                             SelectionMode mode = SelectionMode::List,
                             QObject *parent = nullptr)
         : QItemSelectionModel(model, parent)
+        , m_accessor(model)
         , m_model(model)
         , m_mode(mode)
     {}
 
-    AbstractSourceModel<T> *sourceModel() const { return m_model; }
+    QAbstractItemModel *sourceModel() const { return m_model; }
     SelectionMode mode() const { return m_mode; }
 
     std::vector<T> selectedValues() const
@@ -64,7 +66,7 @@ public:
                       "selectedValues requires a copy-constructible T");
         std::vector<T> values;
         for (const QModelIndex &index : selectedTypedIndexes())
-            values.push_back(m_model->getStorageValue(index));
+            values.push_back(m_accessor->getStorageValue(index));
         return values;
     }
 
@@ -75,7 +77,7 @@ public:
         const QModelIndex index = currentIndex();
         if (!index.isValid())
             return std::nullopt;
-        return m_model->getStorageValue(index);
+        return m_accessor->getStorageValue(index);
     }
 
     template <typename R = Ref>
@@ -83,14 +85,14 @@ public:
     {
         std::vector<std::unique_ptr<R>> refs;
         for (const QModelIndex &index : selectedTypedIndexes())
-            refs.push_back(m_model->template getRef<R>(index));
+            refs.push_back(m_accessor->template getRef<R>(index));
         return refs;
     }
 
     template <typename R = Ref>
     std::unique_ptr<R> currentRef() const
     {
-        return m_model->template getRef<R>(currentIndex());
+        return m_accessor->template getRef<R>(currentIndex());
     }
 
     void select(const T &value, QItemSelectionModel::SelectionFlags command)
@@ -142,11 +144,12 @@ private:
                                          ? ColumnPolicy::FirstColumnOnly
                                          : ColumnPolicy::AllColumns;
         return indexesMatching<T>(
-            *m_model, [&value](const T &candidate) { return candidate == value; },
-            columns);
+            *m_accessor, *m_model,
+            [&value](const T &candidate) { return candidate == value; }, columns);
     }
 
-    AbstractSourceModel<T> *m_model;
+    ValueModelAccessor<T> *m_accessor;
+    QAbstractItemModel *m_model;
     SelectionMode m_mode;
 };
 
