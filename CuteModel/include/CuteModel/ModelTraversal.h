@@ -5,7 +5,6 @@
 #include <QModelIndex>
 
 #include <type_traits>
-#include <utility>
 #include <vector>
 
 namespace cute {
@@ -33,12 +32,15 @@ struct is_cute_model<M, std::void_t<typename M::value_type>>
 template <typename M>
 constexpr bool is_cute_model_v = is_cute_model<M>::value;
 
-template <typename Model, typename Visitor,
-          typename = std::enable_if_t<is_cute_model_v<Model>>>
+template <typename Model, typename Visitor>
 void forEachIndex(const Model *model, Visitor &&visit,
                   ColumnPolicy columns = ColumnPolicy::AllColumns,
                   const QModelIndex &parent = QModelIndex())
 {
+    static_assert(is_cute_model_v<Model>,
+                  "forEachIndex requires a cute model: a type exposing value_type and "
+                  "deriving from AbstractSourceModel<value_type>");
+
     if (!model)
         return;
 
@@ -61,12 +63,15 @@ void forEachIndex(const Model *model, Visitor &&visit,
     }
 }
 
-template <typename Model, typename Predicate,
-          typename = std::enable_if_t<is_cute_model_v<Model>>>
+template <typename Model, typename Predicate>
 std::vector<QModelIndex> indexesMatching(const Model *model, Predicate &&pred,
                                          ColumnPolicy columns = ColumnPolicy::AllColumns,
                                          const QModelIndex &parent = QModelIndex())
 {
+    static_assert(is_cute_model_v<Model>,
+                  "indexesMatching requires a cute model: a type exposing value_type and "
+                  "deriving from AbstractSourceModel<value_type>");
+
     using T = typename Model::value_type;
     std::vector<QModelIndex> result;
     forEachIndex(
