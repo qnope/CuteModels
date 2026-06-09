@@ -79,6 +79,25 @@ protected:
     void SetUp() override { source.reset({1, 2, 3, 4, 5, 6}); }
 };
 
+class RowFilterProxyModelColumnsTest : public ::testing::Test
+{
+protected:
+    TwoColumnIntModel source;
+    RowFilterProxyModel<int> proxy{&source};
+    QAbstractItemModelTester tester{&proxy, Reporting::Fatal};
+
+    void SetUp() override { source.reset({1, 2, 3, 4}); }
+};
+
+class RowFilterProxyModelSourceTest : public ::testing::Test
+{
+protected:
+    IntListModel source;
+    IntListModel other;
+    RowFilterProxyModel<int> proxy;
+    QAbstractItemModelTester tester{&proxy, Reporting::Fatal};
+};
+
 }
 
 TEST_F(RowFilterProxyModelTest, MirrorsSourceWithoutPredicate)
@@ -293,13 +312,8 @@ TEST_F(RowFilterProxyModelTest, PredicateReceivesSourceIndex)
     EXPECT_EQ(proxyValues(proxy), (std::vector<int>{2, 4, 6}));
 }
 
-TEST(RowFilterProxyModelColumnsTest, FilteringPreservesColumnsAndData)
+TEST_F(RowFilterProxyModelColumnsTest, FilteringPreservesColumnsAndData)
 {
-    TwoColumnIntModel source;
-    source.reset({1, 2, 3, 4});
-    RowFilterProxyModel<int> proxy{&source};
-    QAbstractItemModelTester tester{&proxy, Reporting::Fatal};
-
     proxy.setFilterPredicate(isEven);
 
     ASSERT_EQ(proxy.rowCount(), 2);
@@ -311,56 +325,42 @@ TEST(RowFilterProxyModelColumnsTest, FilteringPreservesColumnsAndData)
     EXPECT_EQ(proxy.data(proxy.index(1, 1), Qt::DisplayRole).toInt(), 40);
 }
 
-TEST(RowFilterProxyModelColumnsTest, HeaderDataIsForwarded)
+TEST_F(RowFilterProxyModelColumnsTest, HeaderDataIsForwarded)
 {
-    TwoColumnIntModel source;
-    source.reset({2, 4});
-    RowFilterProxyModel<int> proxy{&source};
-    QAbstractItemModelTester tester{&proxy, Reporting::Fatal};
-
     EXPECT_EQ(proxy.headerData(0, Qt::Horizontal, Qt::DisplayRole).toString(),
               QStringLiteral("value"));
     EXPECT_EQ(proxy.headerData(1, Qt::Horizontal, Qt::DisplayRole).toString(),
               QStringLiteral("times10"));
 }
 
-TEST(RowFilterProxyModelSourceTest, EmptySourceGivesEmptyProxy)
+TEST_F(RowFilterProxyModelSourceTest, EmptySourceGivesEmptyProxy)
 {
-    IntListModel source;
-    RowFilterProxyModel<int> proxy{&source};
-    QAbstractItemModelTester tester{&proxy, Reporting::Fatal};
-
+    proxy.setSourceModel(&source);
     proxy.setFilterPredicate(isEven);
 
     EXPECT_EQ(proxy.rowCount(), 0);
 }
 
-TEST(RowFilterProxyModelSourceTest, ReplacingSourceModelRetargetsProxy)
+TEST_F(RowFilterProxyModelSourceTest, ReplacingSourceModelRetargetsProxy)
 {
-    IntListModel first;
-    first.reset({1, 2, 3});
-    IntListModel second;
-    second.reset({10, 20, 30, 40});
+    source.reset({1, 2, 3});
+    other.reset({10, 20, 30, 40});
 
-    RowFilterProxyModel<int> proxy{&first};
-    QAbstractItemModelTester tester{&proxy, Reporting::Fatal};
+    proxy.setSourceModel(&source);
     ASSERT_EQ(proxy.rowCount(), 3);
 
-    proxy.setSourceModel(&second);
+    proxy.setSourceModel(&other);
 
-    EXPECT_EQ(proxy.typedSourceModel(), &second);
+    EXPECT_EQ(proxy.typedSourceModel(), &other);
     EXPECT_EQ(proxy.rowCount(), 4);
     EXPECT_EQ(proxy.getStorageValue(proxy.index(2, 0)), 30);
 }
 
-TEST(RowFilterProxyModelSourceTest, ConstructedWithoutSourceThenAssigned)
+TEST_F(RowFilterProxyModelSourceTest, ConstructedWithoutSourceThenAssigned)
 {
-    RowFilterProxyModel<int> proxy;
-    QAbstractItemModelTester tester{&proxy, Reporting::Fatal};
     EXPECT_EQ(proxy.typedSourceModel(), nullptr);
     EXPECT_EQ(proxy.rowCount(), 0);
 
-    IntListModel source;
     source.reset({5, 6, 7, 8});
     proxy.setSourceModel(&source);
     proxy.setFilterPredicate(isEven);
@@ -369,19 +369,18 @@ TEST(RowFilterProxyModelSourceTest, ConstructedWithoutSourceThenAssigned)
     EXPECT_EQ(proxyValues(proxy), (std::vector<int>{6, 8}));
 }
 
-TEST(RowFilterProxyModelSourceTest, NonSourceModelThrows)
+TEST_F(RowFilterProxyModelSourceTest, NonSourceModelThrows)
 {
-    RowFilterProxyModel<int> proxy;
     QStringListModel foreign;
 
     EXPECT_THROW(proxy.setSourceModel(&foreign), std::invalid_argument);
+    EXPECT_EQ(proxy.typedSourceModel(), nullptr);
 }
 
-TEST(RowFilterProxyModelSourceTest, NullSourceIsAccepted)
+TEST_F(RowFilterProxyModelSourceTest, NullSourceIsAccepted)
 {
-    IntListModel source;
     source.reset({1, 2, 3});
-    RowFilterProxyModel<int> proxy{&source};
+    proxy.setSourceModel(&source);
     ASSERT_EQ(proxy.typedSourceModel(), &source);
 
     proxy.setSourceModel(static_cast<QAbstractItemModel *>(nullptr));
