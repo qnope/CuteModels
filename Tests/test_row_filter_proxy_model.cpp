@@ -98,12 +98,24 @@ protected:
     QAbstractItemModelTester tester{&proxy, Reporting::Fatal};
 };
 
+class RowFilterProxyModelChainTest : public ::testing::Test
+{
+protected:
+    IntListModel source;
+    RowFilterProxyModel<int> inner{&source};
+    RowFilterProxyModel<int> outer{&inner};
+    QAbstractItemModelTester innerTester{&inner, Reporting::Fatal};
+    QAbstractItemModelTester outerTester{&outer, Reporting::Fatal};
+
+    void SetUp() override { source.reset({1, 2, 3, 4, 5, 6, 7, 8, 9, 10}); }
+};
+
 }
 
 TEST_F(RowFilterProxyModelTest, MirrorsSourceWithoutPredicate)
 {
     EXPECT_FALSE(proxy.hasFilter());
-    EXPECT_EQ(proxy.typedSourceModel(), &source);
+    EXPECT_EQ(proxy.sourceAccessor(), &source);
     EXPECT_EQ(proxy.rowCount(), source.rowCount());
     EXPECT_EQ(proxyValues(proxy), (std::vector<int>{1, 2, 3, 4, 5, 6}));
 }
@@ -351,21 +363,21 @@ TEST_F(RowFilterProxyModelSourceTest, ReplacingSourceModelRetargetsProxy)
 
     proxy.setSourceModel(&other);
 
-    EXPECT_EQ(proxy.typedSourceModel(), &other);
+    EXPECT_EQ(proxy.sourceAccessor(), &other);
     EXPECT_EQ(proxy.rowCount(), 4);
     EXPECT_EQ(proxy.getStorageValue(proxy.index(2, 0)), 30);
 }
 
 TEST_F(RowFilterProxyModelSourceTest, ConstructedWithoutSourceThenAssigned)
 {
-    EXPECT_EQ(proxy.typedSourceModel(), nullptr);
+    EXPECT_EQ(proxy.sourceAccessor(), nullptr);
     EXPECT_EQ(proxy.rowCount(), 0);
 
     source.reset({5, 6, 7, 8});
     proxy.setSourceModel(&source);
     proxy.setFilterPredicate(isEven);
 
-    EXPECT_EQ(proxy.typedSourceModel(), &source);
+    EXPECT_EQ(proxy.sourceAccessor(), &source);
     EXPECT_EQ(proxyValues(proxy), (std::vector<int>{6, 8}));
 }
 
@@ -374,17 +386,97 @@ TEST_F(RowFilterProxyModelSourceTest, NonSourceModelThrows)
     QStringListModel foreign;
 
     EXPECT_THROW(proxy.setSourceModel(&foreign), std::invalid_argument);
-    EXPECT_EQ(proxy.typedSourceModel(), nullptr);
+    EXPECT_EQ(proxy.sourceAccessor(), nullptr);
 }
 
 TEST_F(RowFilterProxyModelSourceTest, NullSourceIsAccepted)
 {
     source.reset({1, 2, 3});
     proxy.setSourceModel(&source);
-    ASSERT_EQ(proxy.typedSourceModel(), &source);
+    ASSERT_EQ(proxy.sourceAccessor(), &source);
 
     proxy.setSourceModel(static_cast<QAbstractItemModel *>(nullptr));
 
-    EXPECT_EQ(proxy.typedSourceModel(), nullptr);
+    EXPECT_EQ(proxy.sourceAccessor(), nullptr);
     EXPECT_EQ(proxy.rowCount(), 0);
+}
+
+TEST_F(RowFilterProxyModelChainTest, ProxyAcceptsAnotherProxyAsSource)
+{
+    EXPECT_EQ(outer.sourceAccessor(), &inner);
+    EXPECT_EQ(outer.sourceModel(), &inner);
+    EXPECT_EQ(outer.rowCount(), source.rowCount());
+    EXPECT_EQ(proxyValues(outer), (std::vector<int>{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}));
+}
+
+TEST_F(RowFilterProxyModelChainTest, BothFiltersAreApplied)
+{
+    inner.setFilterPredicate(isEven);
+    outer.setFilterPredicate([](const int &value, const QModelIndex &) { return value > 5; });
+
+    EXPECT_EQ(proxyValues(inner), (std::vector<int>{2, 4, 6, 8, 10}));
+    EXPECT_EQ(proxyValues(outer), (std::vector<int>{6, 8, 10}));
+}
+
+TEST_F(RowFilterProxyModelChainTest, OuterValueAccessChainsDownToBaseSource)
+{
+    inner.setFilterPredicate(isEven);
+    outer.setFilterPredicate([](const int &value, const QModelIndex &) { return value > 5; });
+
+    const QModelIndex outerIndex = outer.index(0, 0);
+    EXPECT_EQ(outer.getStorageValue(outerIndex), 6);
+
+    const QModelIndex innerIndex = outer.mapToSource(outerIndex);
+    const QModelIndex sourceIndex = inner.mapToSource(innerIndex);
+    EXPECT_EQ(sourceIndex.model(), &source);
+    EXPECT_EQ(sourceIndex.row(), 5);
+}
+
+TEST_F(RowFilterProxyModelChainTest, OuterRefWritesThroughBothProxiesToSource)
+{
+    inner.setFilterPredicate(isEven);
+    outer.setFilterPredicate([](const int &value, const QModelIndex &) { return value > 5; });
+
+    auto ref = outer.getRef(outer.index(0, 0));
+    ASSERT_NE(ref, nullptr);
+    EXPECT_EQ(ref->getValue(), 6);
+
+    QSignalSpy valueChangedSpy(ref.get(), &cute::RefBase::valueChanged);
+    ref->setValue(60);
+
+    EXPECT_EQ(valueChangedSpy.count(), 1);
+    EXPECT_EQ(ref->getValue(), 60);
+    EXPECT_EQ(*source.at(5), 60);
+}
+
+TEST_F(RowFilterProxyModelChainTest, SourceMutationPropagatesThroughBothProxies)
+{
+    inner.setFilterPredicate(isEven);
+    outer.setFilterPredicate([](const int &value, const QModelIndex &) { return value > 5; });
+    ASSERT_EQ(proxyValues(outer), (std::vector<int>{6, 8, 10}));
+
+    QSignalSpy insertedSpy(&outer, &QAbstractItemModel::rowsInserted);
+
+    source.push_back(12);
+    EXPECT_EQ(insertedSpy.count(), 1);
+    EXPECT_EQ(proxyValues(outer), (std::vector<int>{6, 8, 10, 12}));
+
+    source.push_back(4);
+    EXPECT_EQ(insertedSpy.count(), 1);
+    EXPECT_EQ(proxyValues(outer), (std::vector<int>{6, 8, 10, 12}));
+}
+
+TEST_F(RowFilterProxyModelChainTest, EditCanFilterRowOutAtOuterLevel)
+{
+    inner.setFilterPredicate(isEven);
+    outer.setFilterPredicate([](const int &value, const QModelIndex &) { return value > 5; });
+    ASSERT_EQ(proxyValues(outer), (std::vector<int>{6, 8, 10}));
+
+    QSignalSpy removedSpy(&outer, &QAbstractItemModel::rowsRemoved);
+
+    source.setData(source.index(5, 0), 2, ValueRole);
+
+    EXPECT_EQ(removedSpy.count(), 1);
+    EXPECT_EQ(proxyValues(inner), (std::vector<int>{2, 4, 2, 8, 10}));
+    EXPECT_EQ(proxyValues(outer), (std::vector<int>{8, 10}));
 }

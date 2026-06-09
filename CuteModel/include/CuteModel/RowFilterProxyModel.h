@@ -1,6 +1,5 @@
 #pragma once
 
-#include "CuteModel/AbstractSourceModel.h"
 #include "CuteModel/ValueModelAccessor.h"
 
 #include <QModelIndex>
@@ -16,15 +15,14 @@ template <typename T>
 class RowFilterProxyModel : public QSortFilterProxyModel, public ValueModelAccessor<T>
 {
 public:
-    using Ref = typename AbstractSourceModel<T>::Ref;
+    using Ref = typename ValueModelAccessor<T>::Ref;
     using FilterPredicate = std::function<bool(const T &, const QModelIndex &)>;
 
     explicit RowFilterProxyModel(QObject *parent = nullptr)
         : QSortFilterProxyModel(parent)
     {}
 
-    explicit RowFilterProxyModel(AbstractSourceModel<T> *source,
-                                 QObject *parent = nullptr)
+    explicit RowFilterProxyModel(QAbstractItemModel *source, QObject *parent = nullptr)
         : QSortFilterProxyModel(parent)
     {
         setSourceModel(source);
@@ -33,18 +31,17 @@ public:
     void setSourceModel(QAbstractItemModel *source) override
     {
         if (source) {
-            m_source = dynamic_cast<AbstractSourceModel<T> *>(source);
-            if (!m_source)
+            m_accessor = dynamic_cast<ValueModelAccessor<T> *>(source);
+            if (!m_accessor)
                 throw std::invalid_argument(
-                    "RowFilterProxyModel::setSourceModel requires an AbstractSourceModel<T>");
+                    "RowFilterProxyModel::setSourceModel requires a ValueModelAccessor<T>");
         } else {
-            m_source = nullptr;
+            m_accessor = nullptr;
         }
-        m_accessor = m_source;
         QSortFilterProxyModel::setSourceModel(source);
     }
 
-    AbstractSourceModel<T> *typedSourceModel() const { return m_source; }
+    ValueModelAccessor<T> *sourceAccessor() const { return m_accessor; }
 
     void setFilterPredicate(FilterPredicate predicate)
     {
@@ -69,16 +66,15 @@ public:
 protected:
     bool filterAcceptsRow(int sourceRow, const QModelIndex &sourceParent) const override
     {
-        if (!m_predicate || !m_source)
+        if (!m_predicate || !m_accessor)
             return true;
-        const QModelIndex sourceIndex = m_source->index(sourceRow, 0, sourceParent);
+        const QModelIndex sourceIndex = sourceModel()->index(sourceRow, 0, sourceParent);
         if (!sourceIndex.isValid())
             return true;
         return m_predicate(m_accessor->getStorageValue(sourceIndex), sourceIndex);
     }
 
 private:
-    AbstractSourceModel<T> *m_source = nullptr;
     ValueModelAccessor<T> *m_accessor = nullptr;
     FilterPredicate m_predicate;
 };
