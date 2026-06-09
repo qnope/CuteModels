@@ -144,7 +144,7 @@ TEST(ModelTraversalTest, ForEachIndexVisitsListInOrder)
 
     std::vector<int> values;
     std::vector<int> rows;
-    cute::forEachIndex<int>(&model, [&](const int &value, const QModelIndex &index) {
+    cute::forEachIndex<int>(model, [&](const int &value, const QModelIndex &index) {
         values.push_back(value);
         rows.push_back(index.row());
     });
@@ -161,7 +161,7 @@ TEST(ModelTraversalTest, IndexesMatchingFiltersByPredicate)
     QAbstractItemModelTester tester(&model, Reporting::Fatal);
 
     const auto matches = cute::indexesMatching<int>(
-        &model, [](const int &value) { return value % 20 == 0; });
+        model, [](const int &value) { return value % 20 == 0; });
 
     ASSERT_EQ(matches.size(), 2u);
     EXPECT_EQ(matches[0].row(), 1);
@@ -178,14 +178,14 @@ TEST(ModelTraversalTest, ColumnPolicyControlsVisitedColumns)
 
     std::vector<int> allColumns;
     cute::forEachIndex<int>(
-        &model,
+        model,
         [&](const int &value, const QModelIndex &) { allColumns.push_back(value); },
         cute::ColumnPolicy::AllColumns);
     EXPECT_EQ(allColumns, (std::vector<int>{10, 10, 20, 20}));
 
     std::vector<int> firstColumn;
     cute::forEachIndex<int>(
-        &model,
+        model,
         [&](const int &value, const QModelIndex &) { firstColumn.push_back(value); },
         cute::ColumnPolicy::FirstColumnOnly);
     EXPECT_EQ(firstColumn, (std::vector<int>{10, 20}));
@@ -199,12 +199,12 @@ TEST(ModelTraversalTest, IndexesMatchingHonoursColumnPolicy)
     QAbstractItemModelTester tester(&model, Reporting::Fatal);
 
     const auto allColumns = cute::indexesMatching<int>(
-        &model, [](const int &value) { return value == 20; },
+        model, [](const int &value) { return value == 20; },
         cute::ColumnPolicy::AllColumns);
     EXPECT_EQ(allColumns.size(), 2u);
 
     const auto firstColumn = cute::indexesMatching<int>(
-        &model, [](const int &value) { return value == 20; },
+        model, [](const int &value) { return value == 20; },
         cute::ColumnPolicy::FirstColumnOnly);
     ASSERT_EQ(firstColumn.size(), 1u);
     EXPECT_EQ(firstColumn[0].row(), 1);
@@ -219,7 +219,7 @@ TEST(ModelTraversalTest, IndexesMatchingEmptyWhenNoneMatch)
     QAbstractItemModelTester tester(&model, Reporting::Fatal);
 
     const auto matches = cute::indexesMatching<int>(
-        &model, [](const int &value) { return value > 100; });
+        model, [](const int &value) { return value > 100; });
 
     EXPECT_TRUE(matches.empty());
 }
@@ -235,7 +235,7 @@ TEST(ModelTraversalTest, ForEachIndexRecursesIntoChildrenDepthFirst)
     QAbstractItemModelTester tester(&model, Reporting::Fatal);
 
     std::vector<int> values;
-    cute::forEachIndex<int>(&model, [&](const int &value, const QModelIndex &) {
+    cute::forEachIndex<int>(model, [&](const int &value, const QModelIndex &) {
         values.push_back(value);
     });
 
@@ -253,7 +253,7 @@ TEST(ModelTraversalTest, IndexesMatchingWalksWholeTree)
     QAbstractItemModelTester tester(&model, Reporting::Fatal);
 
     const auto even = cute::indexesMatching<int>(
-        &model, [](const int &value) { return value % 2 == 0; });
+        model, [](const int &value) { return value % 2 == 0; });
 
     EXPECT_EQ(valuesAt(model, even), (std::vector<int>{4, 2}));
 }

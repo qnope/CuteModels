@@ -142,7 +142,7 @@ private:
                                          ? ColumnPolicy::FirstColumnOnly
                                          : ColumnPolicy::AllColumns;
         return indexesMatching<T>(
-            m_model, [&value](const T &candidate) { return candidate == value; },
+            *m_model, [&value](const T &candidate) { return candidate == value; },
             columns);
     }
 
