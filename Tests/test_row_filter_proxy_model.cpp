@@ -1,4 +1,5 @@
 #include "CuteModel/BasicListModel.h"
+#include "CuteModel/Exceptions.h"
 #include "CuteModel/RefBase.h"
 #include "CuteModel/RowFilterProxyModel.h"
 #include "CuteModel/ValueRole.h"
@@ -9,6 +10,7 @@
 #include <QAbstractItemModelTester>
 #include <QModelIndex>
 #include <QSignalSpy>
+#include <QSortFilterProxyModel>
 #include <QString>
 #include <QStringList>
 #include <QStringListModel>
@@ -203,6 +205,89 @@ TEST_F(RowFilterProxyModelTest, TypedRefReadsAndWritesThroughFilter)
 TEST_F(RowFilterProxyModelTest, GetRefOnInvalidIndexReturnsNull)
 {
     EXPECT_EQ(proxy.getRef(QModelIndex()), nullptr);
+}
+
+TEST_F(RowFilterProxyModelTest, RefBuiltThroughProxyIsRootedAtSourceModel)
+{
+    proxy.setFilterPredicate(isEven);
+
+    auto ref = proxy.getRef(proxy.index(1, 0));
+    ASSERT_NE(ref, nullptr);
+
+    EXPECT_EQ(ref->index().model(), &source);
+    EXPECT_EQ(ref->index().row(), 3);
+    EXPECT_EQ(ref->getValue(), 4);
+}
+
+TEST_F(RowFilterProxyModelTest, RefSurvivesRowBeingFilteredOut)
+{
+    proxy.setFilterPredicate(isEven);
+
+    auto ref = proxy.getRef(proxy.index(1, 0));
+    ASSERT_NE(ref, nullptr);
+    ASSERT_EQ(ref->getValue(), 4);
+
+    QSignalSpy valueChangedSpy(ref.get(), &cute::RefBase::valueChanged);
+    QSignalSpy destroyedSpy(ref.get(), &cute::RefBase::underlyingValueDestroyed);
+
+    source.setData(source.index(3, 0), 3, ValueRole);
+
+    EXPECT_EQ(proxyValues(proxy), (std::vector<int>{2, 6}));
+    EXPECT_EQ(destroyedSpy.count(), 0);
+    EXPECT_EQ(valueChangedSpy.count(), 1);
+    EXPECT_EQ(ref->getValue(), 3);
+}
+
+TEST_F(RowFilterProxyModelTest, RefSurvivesPredicateChange)
+{
+    proxy.setFilterPredicate(isEven);
+
+    auto ref = proxy.getRef(proxy.index(1, 0));
+    ASSERT_NE(ref, nullptr);
+    ASSERT_EQ(ref->getValue(), 4);
+
+    QSignalSpy destroyedSpy(ref.get(), &cute::RefBase::underlyingValueDestroyed);
+
+    proxy.setFilterPredicate([](const int &value, const QModelIndex &) { return value > 4; });
+
+    ASSERT_FALSE(proxy.mapFromSource(ref->index()).isValid());
+    EXPECT_EQ(destroyedSpy.count(), 0);
+    EXPECT_EQ(ref->getValue(), 4);
+}
+
+TEST_F(RowFilterProxyModelTest, RefDiesWhenSourceRowRemoved)
+{
+    proxy.setFilterPredicate(isEven);
+
+    auto ref = proxy.getRef(proxy.index(1, 0));
+    ASSERT_NE(ref, nullptr);
+
+    QSignalSpy destroyedSpy(ref.get(), &cute::RefBase::underlyingValueDestroyed);
+
+    source.erase(3);
+
+    EXPECT_EQ(destroyedSpy.count(), 1);
+    EXPECT_THROW(ref->getValue(), cute::NullObjectException);
+}
+
+TEST_F(RowFilterProxyModelTest, GetRefResolvesForeignQtProxy)
+{
+    QSortFilterProxyModel qtProxy;
+    qtProxy.setSourceModel(&source);
+
+    auto ref = source.getRef(qtProxy.index(2, 0));
+    ASSERT_NE(ref, nullptr);
+
+    EXPECT_EQ(ref->index().model(), &source);
+    EXPECT_EQ(ref->getValue(), 3);
+}
+
+TEST_F(RowFilterProxyModelTest, GetRefThrowsWhenResolvedModelIsNotAccessor)
+{
+    QStringListModel foreign;
+    foreign.setStringList({QStringLiteral("a")});
+
+    EXPECT_THROW(proxy.getRef(foreign.index(0, 0)), std::invalid_argument);
 }
 
 TEST_F(RowFilterProxyModelTest, SetStorageValueThroughProxyUpdatesSource)
@@ -445,6 +530,23 @@ TEST_F(RowFilterProxyModelChainTest, OuterRefWritesThroughBothProxiesToSource)
     ref->setValue(60);
 
     EXPECT_EQ(valueChangedSpy.count(), 1);
+    EXPECT_EQ(ref->getValue(), 60);
+    EXPECT_EQ(*source.at(5), 60);
+}
+
+TEST_F(RowFilterProxyModelChainTest, RefBuiltThroughChainedProxiesResolvesToBaseSource)
+{
+    inner.setFilterPredicate(isEven);
+    outer.setFilterPredicate([](const int &value, const QModelIndex &) { return value > 5; });
+
+    auto ref = outer.getRef(outer.index(0, 0));
+    ASSERT_NE(ref, nullptr);
+
+    EXPECT_EQ(ref->index().model(), &source);
+    EXPECT_EQ(ref->index().row(), 5);
+    EXPECT_EQ(ref->getValue(), 6);
+
+    ref->setValue(60);
     EXPECT_EQ(ref->getValue(), 60);
     EXPECT_EQ(*source.at(5), 60);
 }

@@ -3,10 +3,12 @@
 #include "CuteModel/Exceptions.h"
 #include "CuteModel/RefBase.h"
 
+#include <QAbstractProxyModel>
 #include <QModelIndex>
 #include <QPersistentModelIndex>
 
 #include <memory>
+#include <stdexcept>
 #include <type_traits>
 #include <utility>
 
@@ -59,7 +61,21 @@ public:
         if (!index.isValid())
             return nullptr;
 
-        return std::unique_ptr<R>(new R(this, QPersistentModelIndex(index)));
+        QModelIndex resolved = index;
+        while (auto *proxy = qobject_cast<const QAbstractProxyModel *>(resolved.model()))
+            resolved = proxy->mapToSource(resolved);
+
+        if (!resolved.isValid())
+            return nullptr;
+
+        auto *accessor = dynamic_cast<ValueModelAccessor *>(
+            const_cast<QAbstractItemModel *>(resolved.model()));
+        if (!accessor)
+            throw std::invalid_argument(
+                "ValueModelAccessor::getRef: the resolved source model is not a "
+                "ValueModelAccessor of the same value type");
+
+        return std::unique_ptr<R>(new R(accessor, QPersistentModelIndex(resolved)));
     }
 
     virtual const T &getStorageValue(const QModelIndex &index) const = 0;
