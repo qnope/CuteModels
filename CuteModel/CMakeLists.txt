@@ -28,7 +28,9 @@ target_sources(CuteModel
 
 target_compile_features(CuteModel PUBLIC cxx_std_17)
 
-target_link_libraries(CuteModel PUBLIC Qt6::Core)
+target_link_libraries(CuteModel PUBLIC
+    Qt6::Core
+    $<BUILD_INTERFACE:cutemodel_sanitizers>)
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)

@@ -8,6 +8,8 @@ project(CuteModel
 option(CUTEMODEL_BUILD_TESTS "Build CuteModel tests" ON)
 option(CUTEMODEL_BUILD_EXAMPLES "Build CuteModel examples" ON)
 
+include(cmake/Sanitizers.cmake)
+
 foreach(_qt_hint QT_ROOT_DIR Qt6_DIR QTDIR CMAKE_PREFIX_PATH)
     if(DEFINED ENV{${_qt_hint}})
         list(PREPEND CMAKE_PREFIX_PATH "$ENV{${_qt_hint}}")
