@@ -63,6 +63,21 @@ ctest --preset default --output-on-failure
 - `cutemodel_tests` — GTest suite (`CUTEMODEL_BUILD_TESTS`, default ON).
 - `refobject` — example executable (`CUTEMODEL_BUILD_EXAMPLES`, default ON).
 
+### Sanitizers
+
+`CUTEMODEL_ENABLE_SANITIZERS` (default OFF) builds the library, tests and examples with
+ASan + UBSan (ASan only on MSVC). The flags live on the `cutemodel_sanitizers` INTERFACE
+target (`cmake/Sanitizers.cmake`), linked into `CuteModel` through `$<BUILD_INTERFACE:...>`
+so the installed export is unaffected. The `sanitize` preset turns it on:
+
+```bash
+cmake --preset sanitize
+cmake --build --preset sanitize
+ctest --preset sanitize --output-on-failure
+```
+
+CI runs this preset on `ubuntu-latest` in addition to the regular matrix.
+
 ## Testing
 1. Always use `QAbstractItemModelTester`.
 2. Always try to catch signals through `QSignalSpy`. Never use lambda that increment something or things like that.
