@@ -66,9 +66,11 @@ ctest --preset default --output-on-failure
 ### Sanitizers
 
 `CUTEMODEL_ENABLE_SANITIZERS` (default OFF) builds the library, tests and examples with
-ASan + UBSan (ASan only on MSVC). The flags live on the `cutemodel_sanitizers` INTERFACE
-target (`cmake/Sanitizers.cmake`), linked into `CuteModel` through `$<BUILD_INTERFACE:...>`
-so the installed export is unaffected. The `sanitize` preset turns it on:
+ASan + UBSan on GCC/Clang, and ASan on MSVC (UBSan does not exist there; `/RTC1` is
+stripped from the Debug flags since it conflicts with `/fsanitize=address`). The flags
+live on the `cutemodel_sanitizers` INTERFACE target (`cmake/Sanitizers.cmake`), linked
+into `CuteModel` through `$<BUILD_INTERFACE:...>` so the installed export is unaffected.
+The `sanitize` preset turns it on:
 
 ```bash
 cmake --preset sanitize
@@ -76,7 +78,8 @@ cmake --build --preset sanitize
 ctest --preset sanitize --output-on-failure
 ```
 
-CI runs this preset on `ubuntu-latest` in addition to the regular matrix.
+CI runs both presets on every platform (full `os` x `preset` matrix). Leak detection is
+LSan's platform default (on by default on Linux, unavailable with Apple Clang and MSVC).
 
 ## Testing
 1. Always use `QAbstractItemModelTester`.
