@@ -123,7 +123,12 @@ public:
             return true;
 
         if constexpr (std::is_default_constructible_v<T>) {
-            insert_range(row, std::vector<T>(static_cast<std::size_t>(count), T()));
+            // emplace default-constructs each row in place so move-only T (e.g.
+            // std::unique_ptr) is supported without requiring a copyable fill.
+            this->beginInsertRows(QModelIndex(), row, row + count - 1);
+            for (int i = 0; i < count; ++i)
+                m_items.emplace(m_items.begin() + row + i);
+            this->endInsertRows();
             return true;
         } else {
             return false;
