@@ -205,6 +205,39 @@ TEST_F(RowFilterProxyModelTest, GetRefOnInvalidIndexReturnsNull)
     EXPECT_EQ(proxy.getRef(QModelIndex()), nullptr);
 }
 
+TEST_F(RowFilterProxyModelTest, RefBuiltFromProxyBindsToSourceModel)
+{
+    proxy.setFilterPredicate(isEven);
+
+    auto ref = proxy.getRef(proxy.index(1, 0));
+    ASSERT_NE(ref, nullptr);
+
+    // The Ref must resolve back to the owning source, not the proxy.
+    EXPECT_EQ(ref->index().model(), &source);
+    EXPECT_EQ(ref->index().row(), 3);
+    EXPECT_EQ(ref->getValue(), 4);
+}
+
+TEST_F(RowFilterProxyModelTest, ResolvedRefTracksSourceAfterRowFilteredOut)
+{
+    proxy.setFilterPredicate(isEven);
+
+    auto ref = proxy.getRef(proxy.index(1, 0));
+    ASSERT_NE(ref, nullptr);
+    ASSERT_EQ(ref->getValue(), 4);
+
+    QSignalSpy valueChangedSpy(ref.get(), &cute::RefBase::valueChanged);
+
+    // Editing the source so the row no longer passes the filter would invalidate a
+    // proxy-bound index; a source-bound Ref keeps observing it instead.
+    source.setData(source.index(3, 0), 5, ValueRole);
+
+    EXPECT_EQ(valueChangedSpy.count(), 1);
+    EXPECT_TRUE(ref->index().isValid());
+    EXPECT_EQ(ref->getValue(), 5);
+    EXPECT_FALSE(proxy.mapFromSource(source.index(3, 0)).isValid());
+}
+
 TEST_F(RowFilterProxyModelTest, SetStorageValueThroughProxyUpdatesSource)
 {
     proxy.setFilterPredicate(isEven);
@@ -447,6 +480,20 @@ TEST_F(RowFilterProxyModelChainTest, OuterRefWritesThroughBothProxiesToSource)
     EXPECT_EQ(valueChangedSpy.count(), 1);
     EXPECT_EQ(ref->getValue(), 60);
     EXPECT_EQ(*source.at(5), 60);
+}
+
+TEST_F(RowFilterProxyModelChainTest, RefThroughChainResolvesToBaseSource)
+{
+    inner.setFilterPredicate(isEven);
+    outer.setFilterPredicate([](const int &value, const QModelIndex &) { return value > 5; });
+
+    auto ref = outer.getRef(outer.index(0, 0));
+    ASSERT_NE(ref, nullptr);
+
+    // Two stacked proxies must collapse down to the single underlying source.
+    EXPECT_EQ(ref->index().model(), &source);
+    EXPECT_EQ(ref->index().row(), 5);
+    EXPECT_EQ(ref->getValue(), 6);
 }
 
 TEST_F(RowFilterProxyModelChainTest, SourceMutationPropagatesThroughBothProxies)
