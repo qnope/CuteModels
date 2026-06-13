@@ -9,6 +9,7 @@ set_target_properties(cutemodel_tests PROPERTIES AUTOMOC ON)
 
 target_sources(cutemodel_tests PRIVATE
     test_value_role.cpp
+    test_meta_object.cpp
     test_value_model_accessor.cpp
     test_ref.cpp
     test_abstract_source_model.cpp

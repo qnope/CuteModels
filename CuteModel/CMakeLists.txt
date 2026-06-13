@@ -11,6 +11,7 @@ target_sources(CuteModel
         BASE_DIRS include
         FILES
             include/CuteModel/ValueRole.h
+            include/CuteModel/MetaObject.h
             include/CuteModel/RefBase.h
             include/CuteModel/ItemProxy.h
             include/CuteModel/RangeList.h
