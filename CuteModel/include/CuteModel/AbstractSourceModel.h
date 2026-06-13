@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CuteModel/Exceptions.h"
+#include "CuteModel/MetaObject.h"
 #include "CuteModel/RefBase.h"
 #include "CuteModel/ValueModelAccessor.h"
 #include "CuteModel/ValueRole.h"
@@ -76,14 +77,29 @@ public:
             return;
         const T &value = this->getStorageValue(index);
         for (QModelRoleData &roleData : roleDataSpan) {
+            const int role = roleData.role();
             if constexpr (is_compatible_with_value_role_v<T>) {
-                if (roleData.role() == ValueRole) {
+                if (role == ValueRole) {
                     roleData.setData(QVariant::fromValue(value));
                     continue;
                 }
             }
-            if (QVariant projected = data(value, index, roleData.role());
-                projected.isValid()) {
+            if constexpr (has_meta_properties_v<T>) {
+                const std::vector<QMetaProperty> &properties = metaPropertiesFor<T>();
+                const int propertyIndex = role - PropertyRoleBase;
+                if (propertyIndex >= 0 &&
+                    propertyIndex < static_cast<int>(properties.size())) {
+                    if (QVariant projected = readMetaProperty(
+                            value, properties[static_cast<std::size_t>(propertyIndex)]);
+                        projected.isValid()) {
+                        roleData.data() = std::move(projected);
+                    } else {
+                        roleData.clearData();
+                    }
+                    continue;
+                }
+            }
+            if (QVariant projected = data(value, index, role); projected.isValid()) {
                 roleData.data() = std::move(projected);
             } else {
                 roleData.clearData();
@@ -116,6 +132,12 @@ public:
         QHash<int, QByteArray> names = QAbstractItemModel::roleNames();
         if constexpr (is_compatible_with_value_role_v<T>)
             names.insert(ValueRole, QByteArrayLiteral("value"));
+        if constexpr (has_meta_properties_v<T>) {
+            const std::vector<QMetaProperty> &properties = metaPropertiesFor<T>();
+            for (std::size_t i = 0; i < properties.size(); ++i)
+                names.insert(PropertyRoleBase + static_cast<int>(i),
+                             QByteArray(properties[i].name()));
+        }
         return names;
     }
 
