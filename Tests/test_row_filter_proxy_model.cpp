@@ -15,6 +15,7 @@
 #include <QVariant>
 
 #include <stdexcept>
+#include <utility>
 #include <vector>
 
 using cute::BasicListModel;
@@ -60,6 +61,18 @@ bool isEven(const int &value, const QModelIndex &)
 {
     return value % 2 == 0;
 }
+
+// An application-specific reference type, used to prove getRef<R> still resolves
+// the proxy chain down to the source when handing out a custom Ref subclass.
+class TaggedIntRef : public cute::ValueModelAccessor<int>::Ref
+{
+public:
+    TaggedIntRef(cute::ValueModelAccessor<int> *model, QPersistentModelIndex index)
+        : Ref(model, std::move(index))
+    {}
+
+    int doubled() const { return getValue() * 2; }
+};
 
 std::vector<int> proxyValues(const RowFilterProxyModel<int> &proxy)
 {
@@ -238,6 +251,69 @@ TEST_F(RowFilterProxyModelTest, ResolvedRefTracksSourceAfterRowFilteredOut)
     EXPECT_FALSE(proxy.mapFromSource(source.index(3, 0)).isValid());
 }
 
+TEST_F(RowFilterProxyModelTest, ResolvedRefWriteBackIsVisibleThroughProxy)
+{
+    proxy.setFilterPredicate(isEven);
+
+    auto ref = proxy.getRef(proxy.index(0, 0));
+    ASSERT_NE(ref, nullptr);
+    ASSERT_EQ(ref->getValue(), 2);
+
+    ref->setValue(20);
+
+    EXPECT_EQ(*source.at(1), 20);
+    EXPECT_EQ(proxy.getStorageValue(proxy.index(0, 0)), 20);
+}
+
+TEST_F(RowFilterProxyModelTest, ResolvedRefEmitsDestroyedWhenSourceRowRemoved)
+{
+    proxy.setFilterPredicate(isEven);
+
+    auto ref = proxy.getRef(proxy.index(1, 0));
+    ASSERT_NE(ref, nullptr);
+    ASSERT_EQ(ref->getValue(), 4);
+
+    QSignalSpy destroyedSpy(ref.get(), &cute::RefBase::underlyingValueDestroyed);
+
+    // The bound row lives in the source, so erasing it there must destroy the Ref.
+    source.erase(3);
+
+    EXPECT_EQ(destroyedSpy.count(), 1);
+    EXPECT_FALSE(ref->index().isValid());
+}
+
+TEST_F(RowFilterProxyModelTest, TypedRefSubclassResolvesThroughProxy)
+{
+    proxy.setFilterPredicate(isEven);
+
+    auto ref = proxy.getRef<TaggedIntRef>(proxy.index(2, 0));
+    ASSERT_NE(ref, nullptr);
+
+    EXPECT_EQ(ref->index().model(), &source);
+    EXPECT_EQ(ref->getValue(), 6);
+    EXPECT_EQ(ref->doubled(), 12);
+}
+
+TEST_F(RowFilterProxyModelTest, ResolveSourceMapsProxyIndexToSource)
+{
+    proxy.setFilterPredicate(isEven);
+
+    const auto resolved = proxy.resolveSource(proxy.index(1, 0));
+
+    EXPECT_EQ(resolved.accessor, &source);
+    EXPECT_EQ(resolved.index, source.index(3, 0));
+}
+
+TEST_F(RowFilterProxyModelTest, ResolveSourceOnPlainSourceIsIdentity)
+{
+    const QModelIndex sourceIndex = source.index(2, 0);
+
+    const auto resolved = source.resolveSource(sourceIndex);
+
+    EXPECT_EQ(resolved.accessor, &source);
+    EXPECT_EQ(resolved.index, sourceIndex);
+}
+
 TEST_F(RowFilterProxyModelTest, SetStorageValueThroughProxyUpdatesSource)
 {
     proxy.setFilterPredicate(isEven);
@@ -378,6 +454,18 @@ TEST_F(RowFilterProxyModelColumnsTest, HeaderDataIsForwarded)
               QStringLiteral("times10"));
 }
 
+TEST_F(RowFilterProxyModelColumnsTest, ResolvedRefPreservesColumn)
+{
+    proxy.setFilterPredicate(isEven);
+
+    auto ref = proxy.getRef(proxy.index(1, 1));
+    ASSERT_NE(ref, nullptr);
+
+    EXPECT_EQ(ref->index().model(), &source);
+    EXPECT_EQ(ref->index().column(), 1);
+    EXPECT_EQ(ref->index().row(), 3);
+}
+
 TEST_F(RowFilterProxyModelSourceTest, EmptySourceGivesEmptyProxy)
 {
     proxy.setSourceModel(&source);
@@ -420,6 +508,16 @@ TEST_F(RowFilterProxyModelSourceTest, NonSourceModelThrows)
 
     EXPECT_THROW(proxy.setSourceModel(&foreign), std::invalid_argument);
     EXPECT_EQ(proxy.sourceAccessor(), nullptr);
+}
+
+TEST_F(RowFilterProxyModelSourceTest, ResolveSourceWithoutSourceFallsBackToSelf)
+{
+    // With no attached source there is nothing to map down to, so resolution stops
+    // at the proxy itself rather than dereferencing a null accessor.
+    const auto resolved = proxy.resolveSource(QModelIndex());
+
+    EXPECT_EQ(resolved.accessor, &proxy);
+    EXPECT_FALSE(resolved.index.isValid());
 }
 
 TEST_F(RowFilterProxyModelSourceTest, NullSourceIsAccepted)
@@ -494,6 +592,23 @@ TEST_F(RowFilterProxyModelChainTest, RefThroughChainResolvesToBaseSource)
     EXPECT_EQ(ref->index().model(), &source);
     EXPECT_EQ(ref->index().row(), 5);
     EXPECT_EQ(ref->getValue(), 6);
+}
+
+TEST_F(RowFilterProxyModelChainTest, RefThroughChainEmitsDestroyedWhenSourceRowRemoved)
+{
+    inner.setFilterPredicate(isEven);
+    outer.setFilterPredicate([](const int &value, const QModelIndex &) { return value > 5; });
+
+    auto ref = outer.getRef(outer.index(0, 0));
+    ASSERT_NE(ref, nullptr);
+    ASSERT_EQ(ref->index().row(), 5);
+
+    QSignalSpy destroyedSpy(ref.get(), &cute::RefBase::underlyingValueDestroyed);
+
+    source.erase(5);
+
+    EXPECT_EQ(destroyedSpy.count(), 1);
+    EXPECT_FALSE(ref->index().isValid());
 }
 
 TEST_F(RowFilterProxyModelChainTest, SourceMutationPropagatesThroughBothProxies)
