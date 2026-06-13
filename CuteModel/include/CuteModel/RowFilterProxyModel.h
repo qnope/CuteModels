@@ -53,6 +53,16 @@ public:
 
     void clearFilter() { setFilterPredicate({}); }
 
+    typename ValueModelAccessor<T>::ResolvedSource
+    resolveSource(const QModelIndex &index) override
+    {
+        if (!m_accessor)
+            return {this, index};
+        // Map one level down and let the source keep resolving, so a chain of proxies
+        // collapses to the underlying AbstractSourceModel.
+        return m_accessor->resolveSource(mapToSource(index));
+    }
+
     const T &getStorageValue(const QModelIndex &index) const override
     {
         return m_accessor->getStorageValue(mapToSource(index));
