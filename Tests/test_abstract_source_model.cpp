@@ -1,5 +1,6 @@
 #include "CuteModel/AbstractSourceModel.h"
 #include "CuteModel/ValueRole.h"
+#include "common/MoveOnly.h"
 
 #include <gtest/gtest.h>
 
@@ -12,6 +13,7 @@
 #include <QVariant>
 
 #include <optional>
+#include <utility>
 
 using cute::AbstractSourceModel;
 using cute::ValueRole;
@@ -182,6 +184,64 @@ protected:
     QAbstractItemModelTester tester{&model, QAbstractItemModelTester::FailureReportingMode::Fatal};
 };
 
+using cute_tests::MoveOnly;
+
+static_assert(!cute::is_compatible_with_value_role_v<MoveOnly>,
+              "MoveOnly must be incompatible with ValueRole: it is neither "
+              "copy- nor default-constructible");
+
+class MoveOnlyCellModel : public AbstractSourceModel<MoveOnly>
+{
+public:
+    using AbstractSourceModel<MoveOnly>::AbstractSourceModel;
+
+    int rowCount(const QModelIndex &parent = QModelIndex()) const override
+    {
+        return parent.isValid() ? 0 : 1;
+    }
+
+    int columnCount(const QModelIndex &parent = QModelIndex()) const override
+    {
+        return parent.isValid() ? 0 : 1;
+    }
+
+    QModelIndex index(int row, int column,
+                      const QModelIndex &parent = QModelIndex()) const override
+    {
+        if (parent.isValid() || row != 0 || column != 0)
+            return {};
+        return createIndex(row, column);
+    }
+
+    QModelIndex parent(const QModelIndex &) const override { return {}; }
+
+    QVariant data(const MoveOnly &value, const QModelIndex &, int role) const override
+    {
+        if (role == Qt::DisplayRole)
+            return value.value;
+        return {};
+    }
+
+protected:
+    const MoveOnly &getStorageValue(const QModelIndex &) const override { return m_value; }
+
+    void setStorageValue(const QModelIndex &index, MoveOnly value) override
+    {
+        m_value = std::move(value);
+        emit dataChanged(index, index);
+    }
+
+private:
+    MoveOnly m_value{0};
+};
+
+class MoveOnlyCellModelTest : public ::testing::Test
+{
+protected:
+    MoveOnlyCellModel model;
+    QAbstractItemModelTester tester{&model, QAbstractItemModelTester::FailureReportingMode::Fatal};
+};
+
 class CustomFlagsModel : public TwoColumnModel
 {
 public:
@@ -306,4 +366,40 @@ TEST(AbstractSourceModelFlags, OverridenFlagsReceiveValueAndIndex)
 
     EXPECT_TRUE(model.flags(model.index(0, 1)) & Qt::ItemIsUserCheckable);
     EXPECT_FALSE(model.flags(model.index(0, 0)) & Qt::ItemIsUserCheckable);
+}
+
+TEST_F(MoveOnlyCellModelTest, DataProjectionWorksForMoveOnlyStorage)
+{
+    EXPECT_EQ(model.index(0, 0).data(Qt::DisplayRole).toInt(), 0);
+}
+
+TEST_F(MoveOnlyCellModelTest, RoleNamesOmitsValueRole)
+{
+    EXPECT_FALSE(model.roleNames().contains(ValueRole));
+}
+
+TEST_F(MoveOnlyCellModelTest, ValueRoleReadContributesNothing)
+{
+    EXPECT_FALSE(model.index(0, 0).data(ValueRole).isValid());
+}
+
+TEST_F(MoveOnlyCellModelTest, SetDataAcceptsNothing)
+{
+    QSignalSpy changedSpy(&model, &QAbstractItemModel::dataChanged);
+
+    EXPECT_FALSE(model.setData(model.index(0, 0), 1, ValueRole));
+    EXPECT_FALSE(model.setData(model.index(0, 0), 1, Qt::EditRole));
+    EXPECT_FALSE(model.setData(model.index(0, 0), 1, Qt::DisplayRole));
+    EXPECT_EQ(changedSpy.count(), 0);
+}
+
+TEST_F(MoveOnlyCellModelTest, MimeDataIsNullBecauseTypeIsNotCopyable)
+{
+    EXPECT_EQ(model.mimeData({model.index(0, 0)}), nullptr);
+}
+
+TEST_F(MoveOnlyCellModelTest, FlagsDefaultToSelectableAndEnabled)
+{
+    EXPECT_EQ(model.flags(model.index(0, 0)),
+              Qt::ItemIsSelectable | Qt::ItemIsEnabled);
 }

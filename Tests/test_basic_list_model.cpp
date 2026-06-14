@@ -1,6 +1,7 @@
 #include "CuteModel/BasicListModel.h"
 #include "CuteModel/RefBase.h"
 #include "CuteModel/ValueRole.h"
+#include "common/MoveOnly.h"
 #include "common/NonDefault.h"
 
 #include <gtest/gtest.h>
@@ -82,6 +83,24 @@ public:
     using BasicListModel<NonDefault>::data;
 
     QVariant data(const NonDefault &value, const QModelIndex &index, int role) const override
+    {
+        if (index.column() != 0)
+            return {};
+        if (role == Qt::DisplayRole)
+            return value.value;
+        return {};
+    }
+};
+
+using cute_tests::MoveOnly;
+
+class MoveOnlyListModel : public BasicListModel<MoveOnly>
+{
+public:
+    using BasicListModel<MoveOnly>::BasicListModel;
+    using BasicListModel<MoveOnly>::data;
+
+    QVariant data(const MoveOnly &value, const QModelIndex &index, int role) const override
     {
         if (index.column() != 0)
             return {};
@@ -1273,4 +1292,121 @@ TEST_F(DroppingListModelTest, DefaultDropRejectsBothShapes)
     EXPECT_FALSE(plain.canDropMimeData(&payload, Qt::CopyAction, -1, 0, plain.index(0, 0)));
     EXPECT_FALSE(plain.dropMimeData(&payload, Qt::CopyAction, -1, 0, plain.index(0, 0)));
     EXPECT_EQ(plain.size(), 1);
+}
+
+TEST(MoveOnlyListModel, PushBackAndEmplaceStoreMovedValues)
+{
+    MoveOnlyListModel model;
+    QAbstractItemModelTester tester{&model,
+        QAbstractItemModelTester::FailureReportingMode::Fatal};
+
+    QSignalSpy insertedSpy(&model, &QAbstractItemModel::rowsInserted);
+
+    model.push_back(MoveOnly{1});
+    model.emplace_back(2);
+    model.insert(1, MoveOnly{3});
+
+    ASSERT_EQ(model.size(), 3);
+    EXPECT_EQ(insertedSpy.count(), 3);
+    EXPECT_EQ(model.at(0)->value, 1);
+    EXPECT_EQ(model.at(1)->value, 3);
+    EXPECT_EQ(model.at(2)->value, 2);
+    EXPECT_EQ(model.index(2, 0).data(Qt::DisplayRole).toInt(), 2);
+}
+
+TEST(MoveOnlyListModel, ResetAndInsertRangeConsumeMovedVectors)
+{
+    MoveOnlyListModel model;
+    QAbstractItemModelTester tester{&model,
+        QAbstractItemModelTester::FailureReportingMode::Fatal};
+
+    std::vector<MoveOnly> initial;
+    initial.emplace_back(10);
+    initial.emplace_back(20);
+    model.reset(std::move(initial));
+    ASSERT_EQ(model.size(), 2);
+
+    std::vector<MoveOnly> more;
+    more.emplace_back(30);
+    more.emplace_back(40);
+    model.insert_range(1, std::move(more));
+
+    ASSERT_EQ(model.size(), 4);
+    EXPECT_EQ(model.at(0)->value, 10);
+    EXPECT_EQ(model.at(1)->value, 30);
+    EXPECT_EQ(model.at(2)->value, 40);
+    EXPECT_EQ(model.at(3)->value, 20);
+}
+
+TEST(MoveOnlyListModel, GetMutableMovesNewValueIntoStorage)
+{
+    MoveOnlyListModel model;
+    QAbstractItemModelTester tester{&model,
+        QAbstractItemModelTester::FailureReportingMode::Fatal};
+    model.push_back(MoveOnly{1});
+
+    QSignalSpy changedSpy(&model, &QAbstractItemModel::dataChanged);
+    model.getMutable(0) = MoveOnly{99};
+
+    EXPECT_EQ(model.at(0)->value, 99);
+    EXPECT_EQ(changedSpy.count(), 1);
+}
+
+TEST(MoveOnlyListModel, EraseAndRemoveRowsShrinkStorage)
+{
+    MoveOnlyListModel model;
+    QAbstractItemModelTester tester{&model,
+        QAbstractItemModelTester::FailureReportingMode::Fatal};
+    model.emplace_back(1);
+    model.emplace_back(2);
+    model.emplace_back(3);
+
+    QSignalSpy removedSpy(&model, &QAbstractItemModel::rowsRemoved);
+
+    model.erase(1);
+    EXPECT_TRUE(model.removeRows(0, 1));
+
+    ASSERT_EQ(model.size(), 1);
+    EXPECT_EQ(model.at(0)->value, 3);
+    EXPECT_EQ(removedSpy.count(), 2);
+}
+
+TEST(MoveOnlyListModel, InsertRowsRejectedWithoutDefaultConstructor)
+{
+    MoveOnlyListModel model;
+    QAbstractItemModelTester tester{&model,
+        QAbstractItemModelTester::FailureReportingMode::Fatal};
+    model.emplace_back(1);
+
+    QSignalSpy insertedSpy(&model, &QAbstractItemModel::rowsInserted);
+
+    EXPECT_FALSE(model.insertRows(0, 1));
+    EXPECT_TRUE(model.insertRows(0, 0));
+    EXPECT_EQ(insertedSpy.count(), 0);
+    EXPECT_EQ(model.size(), 1);
+}
+
+TEST(MoveOnlyListModel, ValueRoleAndMimeDataStayDisabled)
+{
+    MoveOnlyListModel model;
+    QAbstractItemModelTester tester{&model,
+        QAbstractItemModelTester::FailureReportingMode::Fatal};
+    model.emplace_back(7);
+
+    EXPECT_FALSE(model.roleNames().contains(ValueRole));
+    EXPECT_FALSE(model.index(0, 0).data(ValueRole).isValid());
+    EXPECT_FALSE(model.setData(model.index(0, 0), 1, ValueRole));
+    EXPECT_EQ(model.mimeData({model.index(0, 0)}), nullptr);
+}
+
+TEST(MoveOnlyListModel, GetRefExposesStoredValue)
+{
+    MoveOnlyListModel model;
+    QAbstractItemModelTester tester{&model,
+        QAbstractItemModelTester::FailureReportingMode::Fatal};
+    model.emplace_back(5);
+
+    auto ref = model.getRef(model.index(0, 0));
+    ASSERT_NE(ref, nullptr);
+    EXPECT_EQ(ref->getValue().value, 5);
 }

@@ -1,5 +1,6 @@
 #include "CuteModel/BasicTableModel.h"
 #include "CuteModel/ValueRole.h"
+#include "common/MoveOnly.h"
 #include "common/NonDefault.h"
 
 #include <gtest/gtest.h>
@@ -1060,6 +1061,37 @@ std::vector<std::vector<NonDefault>> nonDefaultRows(
     return out;
 }
 
+using cute_tests::MoveOnly;
+
+class MoveOnlyTableModel : public BasicTableModel<MoveOnly>
+{
+public:
+    using BasicTableModel<MoveOnly>::BasicTableModel;
+    using BasicTableModel<MoveOnly>::data;
+
+    QVariant data(const MoveOnly &value, const QModelIndex &, int role) const override
+    {
+        if (role == Qt::DisplayRole)
+            return value.value;
+        return {};
+    }
+};
+
+std::vector<std::vector<MoveOnly>> moveOnlyRows(
+    std::initializer_list<std::initializer_list<int>> rows)
+{
+    std::vector<std::vector<MoveOnly>> out;
+    out.reserve(rows.size());
+    for (const auto &row : rows) {
+        std::vector<MoveOnly> r;
+        r.reserve(row.size());
+        for (int v : row)
+            r.emplace_back(v);
+        out.push_back(std::move(r));
+    }
+    return out;
+}
+
 }
 
 TEST(NonDefaultTableModel, InsertRowsReturnsFalseWithoutDefaultCtor)
@@ -1587,4 +1619,97 @@ TEST_F(IntTableModelTest, ResizeRowsShrinksAndGrows)
     model.resize_rows(4, 9);
     EXPECT_EQ(model.rowCount(), 4);
     EXPECT_EQ(model.index(3, 0).data(ValueRole).toInt(), 9);
+}
+
+TEST(MoveOnlyTableModel, ResetConsumesMovedRows)
+{
+    MoveOnlyTableModel model;
+    QAbstractItemModelTester guard{&model,
+        QAbstractItemModelTester::FailureReportingMode::Fatal};
+
+    ASSERT_TRUE(model.reset(moveOnlyRows({{1, 2}, {3, 4}})));
+
+    EXPECT_EQ(model.rowCount(), 2);
+    EXPECT_EQ(model.columnCount(), 2);
+    EXPECT_EQ(model.at(0, 0)->value, 1);
+    EXPECT_EQ(model.at(1, 1)->value, 4);
+    EXPECT_EQ(model.index(0, 1).data(Qt::DisplayRole).toInt(), 2);
+}
+
+TEST(MoveOnlyTableModel, ResetRejectsNonRectangularRows)
+{
+    MoveOnlyTableModel model;
+    QAbstractItemModelTester guard{&model,
+        QAbstractItemModelTester::FailureReportingMode::Fatal};
+
+    EXPECT_FALSE(model.reset(moveOnlyRows({{1, 2}, {3}})));
+    EXPECT_EQ(model.rowCount(), 0);
+}
+
+TEST(MoveOnlyTableModel, GetMutableMovesNewValueIntoCell)
+{
+    MoveOnlyTableModel model;
+    QAbstractItemModelTester guard{&model,
+        QAbstractItemModelTester::FailureReportingMode::Fatal};
+    ASSERT_TRUE(model.reset(moveOnlyRows({{1, 2}})));
+
+    QSignalSpy changedSpy(&model, &QAbstractItemModel::dataChanged);
+    model.getMutable(0, 1) = MoveOnly{50};
+
+    EXPECT_EQ(model.at(0, 1)->value, 50);
+    EXPECT_EQ(changedSpy.count(), 1);
+}
+
+TEST(MoveOnlyTableModel, EraseRowsAndColumnsShrinkTable)
+{
+    MoveOnlyTableModel model;
+    QAbstractItemModelTester guard{&model,
+        QAbstractItemModelTester::FailureReportingMode::Fatal};
+    ASSERT_TRUE(model.reset(moveOnlyRows({{1, 2, 3}, {4, 5, 6}, {7, 8, 9}})));
+
+    QSignalSpy rowsRemovedSpy(&model, &QAbstractItemModel::rowsRemoved);
+    QSignalSpy columnsRemovedSpy(&model, &QAbstractItemModel::columnsRemoved);
+
+    EXPECT_TRUE(model.removeRows(0, 1));
+    EXPECT_TRUE(model.removeColumns(2, 1));
+
+    EXPECT_EQ(model.rowCount(), 2);
+    EXPECT_EQ(model.columnCount(), 2);
+    EXPECT_EQ(model.at(0, 0)->value, 4);
+    EXPECT_EQ(rowsRemovedSpy.count(), 1);
+    EXPECT_EQ(columnsRemovedSpy.count(), 1);
+}
+
+TEST(MoveOnlyTableModel, InsertRowsAndColumnsRejectedWithoutDefaultCtor)
+{
+    MoveOnlyTableModel model;
+    QAbstractItemModelTester guard{&model,
+        QAbstractItemModelTester::FailureReportingMode::Fatal};
+    ASSERT_TRUE(model.reset(moveOnlyRows({{1, 2}})));
+
+    QSignalSpy rowsInsertedSpy(&model, &QAbstractItemModel::rowsInserted);
+    QSignalSpy columnsInsertedSpy(&model, &QAbstractItemModel::columnsInserted);
+
+    EXPECT_FALSE(model.insertRows(0, 1));
+    EXPECT_FALSE(model.insertColumns(0, 1));
+    EXPECT_TRUE(model.insertRows(0, 0));
+    EXPECT_TRUE(model.insertColumns(0, 0));
+
+    EXPECT_EQ(rowsInsertedSpy.count(), 0);
+    EXPECT_EQ(columnsInsertedSpy.count(), 0);
+    EXPECT_EQ(model.rowCount(), 1);
+    EXPECT_EQ(model.columnCount(), 2);
+}
+
+TEST(MoveOnlyTableModel, ValueRoleAndMimeDataStayDisabled)
+{
+    MoveOnlyTableModel model;
+    QAbstractItemModelTester guard{&model,
+        QAbstractItemModelTester::FailureReportingMode::Fatal};
+    ASSERT_TRUE(model.reset(moveOnlyRows({{7}})));
+
+    EXPECT_FALSE(model.roleNames().contains(ValueRole));
+    EXPECT_FALSE(model.index(0, 0).data(ValueRole).isValid());
+    EXPECT_FALSE(model.setData(model.index(0, 0), 1, ValueRole));
+    EXPECT_EQ(model.mimeData({model.index(0, 0)}), nullptr);
 }
