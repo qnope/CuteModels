@@ -346,7 +346,15 @@ ctest --preset default --output-on-failure
 |---|---|
 | `CuteModel` (alias `CuteModel::CuteModel`) | the static library, installable/exportable for downstream consumption (e.g. via vcpkg) |
 | `cutemodel_tests` | GTest suite — option `CUTEMODEL_BUILD_TESTS`, default `ON` |
-| `refobject` | example executable — option `CUTEMODEL_BUILD_EXAMPLES`, default `ON` |
+| `refobject` | console example executable — option `CUTEMODEL_BUILD_EXAMPLES`, default `ON` |
+| `widgets_list`, `widgets_table`, `widgets_tree` | Qt Widgets demos for `BasicListModel`, `BasicTableModel` and `TreeModel` — option `CUTEMODEL_BUILD_EXAMPLES` |
+| `qml_list`, `qml_table`, `qml_tree` | QML demos for the same three models — option `CUTEMODEL_BUILD_EXAMPLES` |
+
+Each demo app shares the same layout — a filter `LineEdit`, the model view, the
+list of selected elements, and a live `Ref` of the current element at the
+bottom — built on the shared `cutemodel_examples_common` library
+([`Examples/common/`](Examples/common/)). The Widgets and QML variants of a
+model reuse the same source model, `RowFilterProxyModel` and view controller.
 
 ## Testing
 
