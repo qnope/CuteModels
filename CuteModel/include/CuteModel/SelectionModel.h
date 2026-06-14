@@ -47,10 +47,7 @@ public:
     using QItemSelectionModel::isSelected;
     using QItemSelectionModel::select;
 
-    template <typename Model,
-              typename = std::enable_if_t<
-                  std::is_base_of_v<QAbstractItemModel, Model> &&
-                  std::is_base_of_v<ValueModelAccessor<T>, Model>>>
+    template <typename Model>
     explicit SelectionModel(Model *model,
                             SelectionMode mode = SelectionMode::List,
                             QObject *parent = nullptr)
@@ -58,7 +55,12 @@ public:
         , m_accessor(model)
         , m_model(model)
         , m_mode(mode)
-    {}
+    {
+        static_assert(std::is_base_of_v<QAbstractItemModel, Model>,
+                      "SelectionModel requires a model deriving from QAbstractItemModel");
+        static_assert(std::is_base_of_v<ValueModelAccessor<T>, Model>,
+                      "SelectionModel requires a model deriving from ValueModelAccessor<T>");
+    }
 
     SelectionMode mode() const { return m_mode; }
 
