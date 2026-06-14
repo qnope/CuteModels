@@ -18,7 +18,7 @@ CuteModel is a C++ library for Qt providing templated model types.
 5. Don't care much about roles, except for QML.
 6. Use `multiData` instead of `data`.
 7. Edition will be done through a cache with `submit` / `revert`.
-8. Pas de commentaire.
+8. No comments.
 
 ## Different Models targetted
 1. AbstractSourceModel<T> : Inherit from QAbstractItemModel. Handle drop(T) events, edit with caching, expose getValue function etc. Owns the `flags()` dispatch: the `QModelIndex` override is `final` and resolves the element before delegating to the virtual `flags(const T&, const QModelIndex&)` customization point (default `Qt::ItemIsSelectable | Qt::ItemIsEnabled`). The flags returned for the invalid/root index come from a settable `rootFlags()` / `setRootFlags()` attribute (default `Qt::NoItemFlags`). Also owns the role-data dispatch: `multiData` is `final` and, for each role in the span, either fills ValueRole from `getStorageValue` (when `is_compatible_with_value_role_v<T>`) or delegates to the pure-virtual `data(const T&, const QModelIndex&, int role)` customization point.
