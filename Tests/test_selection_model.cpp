@@ -1,6 +1,7 @@
 #include "CuteModel/BasicListModel.h"
 #include "CuteModel/BasicTableModel.h"
 #include "CuteModel/RefBase.h"
+#include "CuteModel/RowFilterProxyModel.h"
 #include "CuteModel/SelectionModel.h"
 
 #include <gtest/gtest.h>
@@ -19,6 +20,7 @@
 
 using cute::BasicListModel;
 using cute::BasicTableModel;
+using cute::RowFilterProxyModel;
 using cute::SelectionMode;
 using cute::SelectionModel;
 
@@ -90,6 +92,86 @@ protected:
     QModelIndex idx(int row, int column) { return model.index(row, column); }
 };
 
+class SelectionModelProxyTest : public ::testing::Test
+{
+protected:
+    IntListModel source;
+    RowFilterProxyModel<int> proxy;
+    QAbstractItemModelTester sourceTester{&source, Reporting::Fatal};
+    QAbstractItemModelTester proxyTester{&proxy, Reporting::Fatal};
+    SelectionModel<int> selection{&proxy, SelectionMode::List};
+
+    void SetUp() override
+    {
+        source.reset({10, 20, 25, 30});
+        proxy.setSourceModel(&source);
+        proxy.setFilterPredicate(
+            [](const int &value, const QModelIndex &) { return value % 2 == 0; });
+    }
+
+    QModelIndex proxyIndexForValue(int value) const
+    {
+        for (int row = 0; row < proxy.rowCount(); ++row) {
+            const QModelIndex index = proxy.index(row, 0);
+            if (proxy.getStorageValue(index) == value)
+                return index;
+        }
+        return {};
+    }
+};
+
+}
+
+TEST_F(SelectionModelProxyTest, SelectsVisibleValueThroughProxy)
+{
+    QSignalSpy spy(&selection, &QItemSelectionModel::selectionChanged);
+
+    selection.select(20, QItemSelectionModel::Select);
+
+    EXPECT_TRUE(selection.isSelected(20));
+    EXPECT_EQ(selection.selectedValues(), (std::vector<int>{20}));
+    EXPECT_EQ(spy.count(), 1);
+}
+
+TEST_F(SelectionModelProxyTest, FilteredOutValueSelectsNothing)
+{
+    QSignalSpy spy(&selection, &QItemSelectionModel::selectionChanged);
+
+    selection.select(25, QItemSelectionModel::Select);
+
+    EXPECT_FALSE(selection.isSelected(25));
+    EXPECT_TRUE(selection.selectedValues().empty());
+    EXPECT_EQ(spy.count(), 0);
+}
+
+TEST_F(SelectionModelProxyTest, CurrentValueAndRefMapToSource)
+{
+    const QModelIndex proxyIndex = proxyIndexForValue(30);
+    ASSERT_TRUE(proxyIndex.isValid());
+
+    selection.setCurrentIndex(proxyIndex, QItemSelectionModel::Select);
+
+    const std::optional<int> value = selection.currentValue();
+    ASSERT_TRUE(value.has_value());
+    EXPECT_EQ(*value, 30);
+
+    auto ref = selection.currentRef();
+    ASSERT_NE(ref, nullptr);
+    EXPECT_EQ(ref->getValue(), 30);
+}
+
+TEST_F(SelectionModelProxyTest, SelectedRefReadsThroughToSource)
+{
+    selection.select(20, QItemSelectionModel::Select);
+
+    auto refs = selection.selectedRefs();
+    ASSERT_EQ(refs.size(), 1u);
+    EXPECT_EQ(refs[0]->getValue(), 20);
+
+    QSignalSpy valueChangedSpy(refs[0].get(), &cute::RefBase::valueChanged);
+    source.setData(source.index(1, 0), 99, cute::ValueRole);
+    EXPECT_EQ(valueChangedSpy.count(), 1);
+    EXPECT_EQ(refs[0]->getValue(), 99);
 }
 
 TEST_F(SelectionModelListTest, ExposesModelAndMode)

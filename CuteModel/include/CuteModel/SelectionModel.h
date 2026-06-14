@@ -1,6 +1,5 @@
 #pragma once
 
-#include "CuteModel/AbstractSourceModel.h"
 #include "CuteModel/ModelTraversal.h"
 #include "CuteModel/ValueModelAccessor.h"
 
@@ -43,12 +42,16 @@ template <typename T>
 class SelectionModel : public QItemSelectionModel
 {
 public:
-    using Ref = typename AbstractSourceModel<T>::Ref;
+    using Ref = typename ValueModelAccessor<T>::Ref;
 
     using QItemSelectionModel::isSelected;
     using QItemSelectionModel::select;
 
-    explicit SelectionModel(AbstractSourceModel<T> *model,
+    template <typename Model,
+              typename = std::enable_if_t<
+                  std::is_base_of_v<QAbstractItemModel, Model> &&
+                  std::is_base_of_v<ValueModelAccessor<T>, Model>>>
+    explicit SelectionModel(Model *model,
                             SelectionMode mode = SelectionMode::List,
                             QObject *parent = nullptr)
         : QItemSelectionModel(model, parent)
