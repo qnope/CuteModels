@@ -76,6 +76,7 @@ public:
         if (!checkIndex(index, CheckIndexOption::IndexIsValid))
             return;
         const T &value = this->getStorageValue(index);
+        const QHash<int, QByteArray> names = roleNames();
         for (QModelRoleData &roleData : roleDataSpan) {
             const int role = roleData.role();
             if constexpr (is_compatible_with_value_role_v<T>) {
@@ -85,12 +86,11 @@ public:
                 }
             }
             if constexpr (has_meta_properties_v<T>) {
-                const std::vector<QMetaProperty> &properties = metaPropertiesFor<T>();
-                const int propertyIndex = role - PropertyRoleBase;
-                if (propertyIndex >= 0 &&
-                    propertyIndex < static_cast<int>(properties.size())) {
-                    if (QVariant projected = readMetaProperty(
-                            value, properties[static_cast<std::size_t>(propertyIndex)]);
+                // Property roles are exactly the ones roleNames() published from
+                // PropertyRoleBase onward; resolve them by their published name.
+                if (const auto it = names.constFind(role);
+                    role >= PropertyRoleBase && it != names.constEnd()) {
+                    if (QVariant projected = readMetaProperty(value, it.value().constData());
                         projected.isValid()) {
                         roleData.data() = std::move(projected);
                     } else {
@@ -129,15 +129,18 @@ public:
 
     QHash<int, QByteArray> roleNames() const override
     {
-        QHash<int, QByteArray> names = QAbstractItemModel::roleNames();
-        if constexpr (is_compatible_with_value_role_v<T>)
-            names.insert(ValueRole, QByteArrayLiteral("value"));
-        if constexpr (has_meta_properties_v<T>) {
-            const std::vector<QMetaProperty> &properties = metaPropertiesFor<T>();
-            for (std::size_t i = 0; i < properties.size(); ++i)
-                names.insert(PropertyRoleBase + static_cast<int>(i),
-                             QByteArray(properties[i].name()));
-        }
+        static const QHash<int, QByteArray> names = [this]() {
+            QHash<int, QByteArray> names = QAbstractItemModel::roleNames();
+            if constexpr (is_compatible_with_value_role_v<T>)
+                names.insert(ValueRole, QByteArrayLiteral("value"));
+            if constexpr (has_meta_properties_v<T>) {
+                const std::vector<QMetaProperty> &properties = metaPropertiesFor<T>();
+                for (std::size_t i = 0; i < properties.size(); ++i)
+                    names.insert(PropertyRoleBase + static_cast<int>(i),
+                                 QByteArray(properties[i].name()));
+            }
+            return names;
+        }();
         return names;
     }
 

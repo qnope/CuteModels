@@ -141,4 +141,17 @@ const std::vector<QMetaProperty> &metaPropertiesFor()
     return properties;
 }
 
+// Reads a meta-property by name off the stored element. Lets callers resolve a
+// property straight from the role name published by roleNames(). An unknown name
+// yields an invalid QVariant.
+template <typename T>
+QVariant readMetaProperty(const T &storage, const char *name)
+{
+    const QMetaObject &metaObject = meta_element_t<T>::staticMetaObject;
+    const int index = metaObject.indexOfProperty(name);
+    if (index < 0)
+        return {};
+    return readMetaProperty(storage, metaObject.property(index));
+}
+
 }
