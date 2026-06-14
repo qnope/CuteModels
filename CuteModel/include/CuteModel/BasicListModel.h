@@ -126,9 +126,6 @@ public:
             return true;
 
         if constexpr (std::is_default_constructible_v<T>) {
-            // A size-constructed vector default-constructs each row, which
-            // insert_range then moves into place, so move-only T (e.g.
-            // std::unique_ptr) is supported without requiring a copyable fill.
             insert_range(row, std::vector<T>(static_cast<std::size_t>(count)));
             return true;
         } else {

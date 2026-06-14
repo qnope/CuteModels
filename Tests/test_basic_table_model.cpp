@@ -1027,11 +1027,6 @@ TEST_F(IntTableModelTest, GetRefTracksCellValue)
     EXPECT_EQ(ref->getValue(), 2);
 }
 
-// ===========================================================================
-// Auto-padding behavior: insert_range_row / insert_range_column / reset with
-// non-rectangular inputs, plus non-default-constructible T short-circuits.
-// ===========================================================================
-
 namespace {
 
 using cute_tests::NonDefault;
@@ -1066,8 +1061,6 @@ std::vector<std::vector<NonDefault>> nonDefaultRows(
 }
 
 }
-
-// ----- A. Overrides Qt sur T non default-constructible -----
 
 TEST(NonDefaultTableModel, InsertRowsReturnsFalseWithoutDefaultCtor)
 {
@@ -1145,8 +1138,6 @@ TEST_F(IntTableModelTest, InsertColumnsSucceedsForDefaultConstructibleT)
     EXPECT_EQ(model.index(0, 2).data(ValueRole).toInt(), 1);
 }
 
-// ----- B. insert_range_row — agrandissement (incoming WIDER que table) -----
-
 TEST_F(IntTableModelTest, InsertRangeRowWiderThanTableExtendsColumns)
 {
     model.reset(std::vector<std::vector<int>>{{1, 2, 3}, {4, 5, 6}});
@@ -1170,12 +1161,10 @@ TEST_F(IntTableModelTest, InsertRangeRowWiderThanTableExtendsColumns)
     EXPECT_EQ(rowsSpy.at(0).at(1).toInt(), 1);
     EXPECT_EQ(rowsSpy.at(0).at(2).toInt(), 1);
 
-    // Existing rows padded with 0 in new columns.
     EXPECT_EQ(model.index(0, 3).data(ValueRole).toInt(), 0);
     EXPECT_EQ(model.index(0, 4).data(ValueRole).toInt(), 0);
     EXPECT_EQ(model.index(2, 3).data(ValueRole).toInt(), 0);
     EXPECT_EQ(model.index(2, 4).data(ValueRole).toInt(), 0);
-    // New row carries provided values.
     EXPECT_EQ(model.index(1, 0).data(ValueRole).toInt(), 7);
     EXPECT_EQ(model.index(1, 4).data(ValueRole).toInt(), 11);
 }
@@ -1230,8 +1219,6 @@ TEST(NonDefaultTableModel, InsertRangeRowWiderThanTableReturnsFalse)
     EXPECT_EQ(model.columnCount(), 3);
 }
 
-// ----- C. insert_range_row — réduction (incoming NARROWER que table) -----
-
 TEST_F(IntTableModelTest, InsertRangeRowNarrowerPadsIncoming)
 {
     model.reset(std::vector<std::vector<int>>{{1, 2, 3}, {4, 5, 6}});
@@ -1282,8 +1269,6 @@ TEST(NonDefaultTableModel, InsertRangeRowNarrowerReturnsFalse)
     EXPECT_EQ(model.rowCount(), 2);
 }
 
-// ----- D. insert_range_row — incoming NON RECTANGULAIRE -----
-
 TEST_F(IntTableModelTest, InsertRangeRowNonRectangularExtendsAndPads)
 {
     model.reset(std::vector<std::vector<int>>{{1, 2, 3}, {4, 5, 6}});
@@ -1301,13 +1286,10 @@ TEST_F(IntTableModelTest, InsertRangeRowNonRectangularExtendsAndPads)
     EXPECT_EQ(model.rowCount(), 4);
     EXPECT_EQ(model.columnCount(), 4);
 
-    // Existing rows padded.
     EXPECT_EQ(model.index(0, 3).data(ValueRole).toInt(), 0);
     EXPECT_EQ(model.index(1, 3).data(ValueRole).toInt(), 0);
-    // First new row keeps its values.
     EXPECT_EQ(model.index(2, 0).data(ValueRole).toInt(), 10);
     EXPECT_EQ(model.index(2, 3).data(ValueRole).toInt(), 40);
-    // Second new row padded with 0s.
     EXPECT_EQ(model.index(3, 0).data(ValueRole).toInt(), 50);
     EXPECT_EQ(model.index(3, 1).data(ValueRole).toInt(), 60);
     EXPECT_EQ(model.index(3, 2).data(ValueRole).toInt(), 0);
@@ -1331,8 +1313,6 @@ TEST(NonDefaultTableModel, InsertRangeRowNonRectangularReturnsFalse)
     EXPECT_EQ(rowsSpy.count(), 0);
 }
 
-// ----- E. Cas dégénérés -----
-
 TEST_F(IntTableModelTest, InsertRangeRowEmptyVectorReturnsFalse)
 {
     model.reset(std::vector<std::vector<int>>{{1, 2}});
@@ -1348,8 +1328,6 @@ TEST_F(IntTableModelTest, InsertRangeRowOutOfBoundsRow)
     EXPECT_FALSE(model.insert_range_row(99, std::vector<std::vector<int>>{{3, 4}}));
     EXPECT_EQ(model.rowCount(), 1);
 }
-
-// ----- F. append_range_row variantes -----
 
 TEST_F(IntTableModelTest, AppendRangeRowSingleVectorReturnsBool)
 {
@@ -1377,8 +1355,6 @@ TEST_F(IntTableModelTest, AppendRangeRowNarrowerPads)
     EXPECT_EQ(model.index(1, 2).data(ValueRole).toInt(), 0);
 }
 
-// ----- H. insert_range_column — agrandissement (incoming TALLER que table) -----
-
 TEST_F(IntTableModelTest, InsertRangeColumnTallerExtendsRows)
 {
     model.reset(std::vector<std::vector<int>>{{1, 2, 3}, {4, 5, 6}});
@@ -1402,10 +1378,8 @@ TEST_F(IntTableModelTest, InsertRangeColumnTallerExtendsRows)
     EXPECT_EQ(colsSpy.at(0).at(1).toInt(), 1);
     EXPECT_EQ(colsSpy.at(0).at(2).toInt(), 1);
 
-    // New rows fully default-constructed except in the new column.
     EXPECT_EQ(model.index(2, 0).data(ValueRole).toInt(), 0);
     EXPECT_EQ(model.index(3, 3).data(ValueRole).toInt(), 0);
-    // New column carries values across all rows (4 rows total).
     EXPECT_EQ(model.index(0, 1).data(ValueRole).toInt(), 7);
     EXPECT_EQ(model.index(1, 1).data(ValueRole).toInt(), 8);
     EXPECT_EQ(model.index(2, 1).data(ValueRole).toInt(), 9);
@@ -1427,8 +1401,6 @@ TEST(NonDefaultTableModel, InsertRangeColumnTallerReturnsFalse)
     EXPECT_EQ(rowsSpy.count(), 0);
     EXPECT_EQ(colsSpy.count(), 0);
 }
-
-// ----- I. insert_range_column — réduction (incoming SHORTER que table) -----
 
 TEST_F(IntTableModelTest, InsertRangeColumnShorterPadsIncoming)
 {
@@ -1463,8 +1435,6 @@ TEST(NonDefaultTableModel, InsertRangeColumnShorterReturnsFalse)
     EXPECT_EQ(model.columnCount(), 3);
 }
 
-// ----- J. insert_range_column — non rectangulaire -----
-
 TEST_F(IntTableModelTest, InsertRangeColumnNonRectangularExtendsAndPads)
 {
     model.reset(std::vector<std::vector<int>>{{1, 2}, {3, 4}});
@@ -1480,18 +1450,14 @@ TEST_F(IntTableModelTest, InsertRangeColumnNonRectangularExtendsAndPads)
     EXPECT_EQ(model.rowCount(), 3);
     EXPECT_EQ(model.columnCount(), 4);
 
-    // Existing row 0 keeps {1,2} in shifted columns; row 0 column 2,3 is shifted-original.
     EXPECT_EQ(model.index(0, 2).data(ValueRole).toInt(), 1);
     EXPECT_EQ(model.index(0, 3).data(ValueRole).toInt(), 2);
-    // First new column carries {10,20,30}.
     EXPECT_EQ(model.index(0, 0).data(ValueRole).toInt(), 10);
     EXPECT_EQ(model.index(1, 0).data(ValueRole).toInt(), 20);
     EXPECT_EQ(model.index(2, 0).data(ValueRole).toInt(), 30);
-    // Second new column carries {40, padding, padding}.
     EXPECT_EQ(model.index(0, 1).data(ValueRole).toInt(), 40);
     EXPECT_EQ(model.index(1, 1).data(ValueRole).toInt(), 0);
     EXPECT_EQ(model.index(2, 1).data(ValueRole).toInt(), 0);
-    // Padded row (row 2) of the original columns is 0.
     EXPECT_EQ(model.index(2, 2).data(ValueRole).toInt(), 0);
     EXPECT_EQ(model.index(2, 3).data(ValueRole).toInt(), 0);
 }
@@ -1506,8 +1472,6 @@ TEST(NonDefaultTableModel, InsertRangeColumnNonRectangularReturnsFalse)
     EXPECT_FALSE(model.insert_range_column(0,
         nonDefaultRows({{10, 20, 30}, {40}})));
 }
-
-// ----- K. reset exhaustif -----
 
 TEST_F(IntTableModelTest, ResetEmptyProducesZeroByZero)
 {
@@ -1596,8 +1560,6 @@ TEST(NonDefaultTableModel, ClearOnEmptyStaysEmpty)
     EXPECT_EQ(model.rowCount(), 0);
     EXPECT_EQ(model.columnCount(), 0);
 }
-
-// ----- L. Suppression / réduction des dimensions existantes -----
 
 TEST_F(IntTableModelTest, RemoveRowsReducesRowCount)
 {

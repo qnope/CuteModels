@@ -50,18 +50,12 @@ public:
         friend class ValueModelAccessor;
     };
 
-    // The accessor/index pair a Ref should bind to. For a plain source this is the
-    // accessor itself; proxies resolve it down to the underlying source (see below).
     struct ResolvedSource
     {
         ValueModelAccessor *accessor = nullptr;
         QModelIndex index;
     };
 
-    // Customization point that walks a proxy chain back to its source. The default,
-    // used by every AbstractSourceModel, is the identity: an accessor *is* its own
-    // source. A proxy overrides this to map the index one level down and recurse,
-    // so the resolution terminates at the first non-proxy accessor without any RTTI.
     virtual ResolvedSource resolveSource(const QModelIndex &index)
     {
         return {this, index};
@@ -76,9 +70,6 @@ public:
         if (!index.isValid())
             return nullptr;
 
-        // A Ref built from a proxy index follows the proxy back to its source so that
-        // it tracks the owning AbstractSourceModel directly, surviving (and observing)
-        // changes even when the proxy would filter the row out.
         const ResolvedSource resolved = resolveSource(index);
         if (!resolved.accessor || !resolved.index.isValid())
             return nullptr;

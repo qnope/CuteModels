@@ -62,8 +62,6 @@ bool isEven(const int &value, const QModelIndex &)
     return value % 2 == 0;
 }
 
-// An application-specific reference type, used to prove getRef<R> still resolves
-// the proxy chain down to the source when handing out a custom Ref subclass.
 class TaggedIntRef : public cute::ValueModelAccessor<int>::Ref
 {
 public:
@@ -225,7 +223,6 @@ TEST_F(RowFilterProxyModelTest, RefBuiltFromProxyBindsToSourceModel)
     auto ref = proxy.getRef(proxy.index(1, 0));
     ASSERT_NE(ref, nullptr);
 
-    // The Ref must resolve back to the owning source, not the proxy.
     EXPECT_EQ(ref->index().model(), &source);
     EXPECT_EQ(ref->index().row(), 3);
     EXPECT_EQ(ref->getValue(), 4);
@@ -241,8 +238,6 @@ TEST_F(RowFilterProxyModelTest, ResolvedRefTracksSourceAfterRowFilteredOut)
 
     QSignalSpy valueChangedSpy(ref.get(), &cute::RefBase::valueChanged);
 
-    // Editing the source so the row no longer passes the filter would invalidate a
-    // proxy-bound index; a source-bound Ref keeps observing it instead.
     source.setData(source.index(3, 0), 5, ValueRole);
 
     EXPECT_EQ(valueChangedSpy.count(), 1);
@@ -275,7 +270,6 @@ TEST_F(RowFilterProxyModelTest, ResolvedRefEmitsDestroyedWhenSourceRowRemoved)
 
     QSignalSpy destroyedSpy(ref.get(), &cute::RefBase::underlyingValueDestroyed);
 
-    // The bound row lives in the source, so erasing it there must destroy the Ref.
     source.erase(3);
 
     EXPECT_EQ(destroyedSpy.count(), 1);
@@ -512,8 +506,6 @@ TEST_F(RowFilterProxyModelSourceTest, NonSourceModelThrows)
 
 TEST_F(RowFilterProxyModelSourceTest, ResolveSourceWithoutSourceFallsBackToSelf)
 {
-    // With no attached source there is nothing to map down to, so resolution stops
-    // at the proxy itself rather than dereferencing a null accessor.
     const auto resolved = proxy.resolveSource(QModelIndex());
 
     EXPECT_EQ(resolved.accessor, &proxy);
@@ -588,7 +580,6 @@ TEST_F(RowFilterProxyModelChainTest, RefThroughChainResolvesToBaseSource)
     auto ref = outer.getRef(outer.index(0, 0));
     ASSERT_NE(ref, nullptr);
 
-    // Two stacked proxies must collapse down to the single underlying source.
     EXPECT_EQ(ref->index().model(), &source);
     EXPECT_EQ(ref->index().row(), 5);
     EXPECT_EQ(ref->getValue(), 6);

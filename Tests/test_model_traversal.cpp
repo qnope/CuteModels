@@ -34,7 +34,6 @@ public:
     }
 };
 
-// Arbre minimal à pointeurs parents stables, pour exercer la récursion.
 struct TreeNode
 {
     int value = 0;

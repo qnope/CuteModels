@@ -43,9 +43,6 @@ std::vector<QMetaProperty> metaProperties()
     return properties;
 }
 
-// Unwraps the meta-object element type carried by T. Stored elements may be the
-// gadget/object by value or behind an indirection (raw pointer, unique_ptr,
-// shared_ptr); meta_element_t<T> resolves all of those to the underlying type.
 template <typename T>
 struct meta_element
 {
@@ -93,15 +90,8 @@ struct is_shared_or_unique_ptr<std::shared_ptr<T>> : std::true_type
 {
 };
 
-// Property roles are numbered from PropertyRoleBase: the property at index i in
-// metaPropertiesFor<T>() maps to role PropertyRoleBase + i. This keeps roleNames()
-// and multiData() in agreement. PropertyRoleBase sits one past ValueRole
-// (Qt::UserRole + 1).
 constexpr int PropertyRoleBase = Qt::UserRole + 2;
 
-// Returns a const pointer to the underlying meta element regardless of how T wraps
-// it: the raw pointer itself for pointer forms, .get() for smart pointers, and the
-// address of the value otherwise. May be null for the indirected forms.
 template <typename T>
 const meta_element_t<T> *metaElementPointer(const T &storage)
 {
@@ -114,9 +104,6 @@ const meta_element_t<T> *metaElementPointer(const T &storage)
         return std::addressof(storage);
 }
 
-// Reads a single meta-property off the stored element, choosing read() for
-// QObject-derived types and readOnGadget() for gadgets. A null indirection yields
-// an invalid QVariant.
 template <typename T>
 QVariant readMetaProperty(const T &storage, const QMetaProperty &property)
 {
@@ -131,8 +118,6 @@ QVariant readMetaProperty(const T &storage, const QMetaProperty &property)
         return property.readOnGadget(pointer);
 }
 
-// Cached property list for the meta element of T. The vector is built once per
-// instantiation so roleNames()/multiData() never reallocate it.
 template <typename T>
 const std::vector<QMetaProperty> &metaPropertiesFor()
 {
@@ -141,9 +126,6 @@ const std::vector<QMetaProperty> &metaPropertiesFor()
     return properties;
 }
 
-// Reads a meta-property by name off the stored element. Lets callers resolve a
-// property straight from the role name published by roleNames(). An unknown name
-// yields an invalid QVariant.
 template <typename T>
 QVariant readMetaProperty(const T &storage, const char *name)
 {

@@ -92,8 +92,6 @@ protected:
 
 }
 
-// --- Accesseurs de base -----------------------------------------------------
-
 TEST_F(SelectionModelListTest, ExposesModelAndMode)
 {
     EXPECT_EQ(selection.model(), &model);
@@ -102,8 +100,6 @@ TEST_F(SelectionModelListTest, ExposesModelAndMode)
     EXPECT_FALSE(selection.currentValue().has_value());
     EXPECT_EQ(selection.currentRef(), nullptr);
 }
-
-// --- Alternance par index (List) --------------------------------------------
 
 TEST_F(SelectionModelListTest, IndexAlternationTracksValuesAndSignals)
 {
@@ -156,8 +152,6 @@ TEST_F(SelectionModelListTest, SelectionChangedReportsDeltas)
     }
 }
 
-// --- Alternance par valeur (List) -------------------------------------------
-
 TEST_F(SelectionModelListTest, ValueAlternationTracksStateAndSignals)
 {
     QSignalSpy spy(&selection, &QItemSelectionModel::selectionChanged);
@@ -183,28 +177,24 @@ TEST_F(SelectionModelListTest, ValueAlternationTracksStateAndSignals)
     EXPECT_EQ(spy.count(), 4);
 }
 
-// --- Cohérence croisée index <-> valeur (List) ------------------------------
-
 TEST_F(SelectionModelListTest, MixedIndexAndValuePathsStayConsistent)
 {
-    selection.select(10, QItemSelectionModel::Select); // par valeur
+    selection.select(10, QItemSelectionModel::Select);
     EXPECT_TRUE(selection.isSelected(10));
-    EXPECT_TRUE(selection.isSelected(idx(0))); // surcharge par index héritée
+    EXPECT_TRUE(selection.isSelected(idx(0)));
 
-    selection.select(idx(0), QItemSelectionModel::Deselect); // par index
+    selection.select(idx(0), QItemSelectionModel::Deselect);
     EXPECT_FALSE(selection.isSelected(10));
     EXPECT_TRUE(selection.selectedValues().empty());
 
-    selection.select(idx(1), QItemSelectionModel::Select); // par index
+    selection.select(idx(1), QItemSelectionModel::Select);
     EXPECT_TRUE(selection.isSelected(20));
     EXPECT_EQ(sorted(selection.selectedValues()), (std::vector<int>{20}));
 
-    selection.deselect(20); // par valeur
+    selection.deselect(20);
     EXPECT_FALSE(selection.isSelected(20));
     EXPECT_TRUE(selection.selectedValues().empty());
 }
-
-// --- Idempotence et cas limites (List) --------------------------------------
 
 TEST_F(SelectionModelListTest, DeselectUnselectedValueIsNoOp)
 {
@@ -238,8 +228,6 @@ TEST_F(SelectionModelListTest, ClearRemovesEverything)
     EXPECT_EQ(spy.count(), 1);
 }
 
-// --- Doublons de valeur (List) ----------------------------------------------
-
 TEST_F(SelectionModelListTest, DuplicateValueSelectsAndDeselectsAllRows)
 {
     model.reset({10, 20, 30, 20});
@@ -252,8 +240,6 @@ TEST_F(SelectionModelListTest, DuplicateValueSelectsAndDeselectsAllRows)
     EXPECT_FALSE(selection.isSelected(20));
     EXPECT_TRUE(selection.selectedValues().empty());
 }
-
-// --- Refs (List) ------------------------------------------------------------
 
 TEST_F(SelectionModelListTest, CurrentRefAndValueReflectCurrentIndex)
 {
@@ -303,8 +289,6 @@ TEST_F(SelectionModelListTest, SelectedRefsStayValidAcrossSelectDeselectCycles)
     EXPECT_EQ(refs[0]->getValue(), 99);
 }
 
-// --- Alternance par index (Table) -------------------------------------------
-
 TEST_F(SelectionModelTableTest, IndexAlternationPerCell)
 {
     QSignalSpy spy(&selection, &QItemSelectionModel::selectionChanged);
@@ -321,14 +305,12 @@ TEST_F(SelectionModelTableTest, IndexAlternationPerCell)
     EXPECT_TRUE(selection.selectedValues().empty());
 }
 
-// --- Alternance par valeur (Table) ------------------------------------------
-
 TEST_F(SelectionModelTableTest, ValueSelectionTargetsMatchingCell)
 {
     selection.select(3, QItemSelectionModel::Select);
     EXPECT_TRUE(selection.isSelected(3));
     EXPECT_EQ(sorted(selection.selectedValues()), (std::vector<int>{3}));
-    EXPECT_TRUE(selection.isSelected(idx(1, 0))); // surcharge par index
+    EXPECT_TRUE(selection.isSelected(idx(1, 0)));
 
     selection.deselect(3);
     EXPECT_FALSE(selection.isSelected(3));
@@ -337,7 +319,7 @@ TEST_F(SelectionModelTableTest, ValueSelectionTargetsMatchingCell)
 
 TEST_F(SelectionModelTableTest, DuplicateValueSelectsAllCells)
 {
-    model.getMutable(0, 1) = 3; // (0,1) et (1,0) valent désormais 3
+    model.getMutable(0, 1) = 3;
 
     selection.select(3, QItemSelectionModel::Select);
     EXPECT_EQ(sorted(selection.selectedValues()), (std::vector<int>{3, 3}));
@@ -345,8 +327,6 @@ TEST_F(SelectionModelTableTest, DuplicateValueSelectsAllCells)
     selection.deselect(3);
     EXPECT_TRUE(selection.selectedValues().empty());
 }
-
-// --- Refs / current (Table) -------------------------------------------------
 
 TEST_F(SelectionModelTableTest, CurrentValueAndRefForCell)
 {
