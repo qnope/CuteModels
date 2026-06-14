@@ -3,6 +3,7 @@
 #include "CuteModel/TreeModel.h"
 #include "CuteModel/TreeNode.h"
 #include "CuteModel/ValueRole.h"
+#include "common/MoveOnly.h"
 #include "common/NonDefault.h"
 
 #include <gtest/gtest.h>
@@ -83,6 +84,24 @@ public:
     using TreeModel<std::shared_ptr<TreeNode<NonDefault>>>::data;
 
     QVariant data(const std::shared_ptr<TreeNode<NonDefault>> &node, const QModelIndex &index, int role) const override
+    {
+        if (index.column() != 0)
+            return {};
+        if (role == Qt::DisplayRole)
+            return node->payload().value;
+        return {};
+    }
+};
+
+using cute_tests::MoveOnly;
+
+class MoveOnlyTreeModel : public TreeModel<std::shared_ptr<TreeNode<MoveOnly>>>
+{
+public:
+    using TreeModel<std::shared_ptr<TreeNode<MoveOnly>>>::TreeModel;
+    using TreeModel<std::shared_ptr<TreeNode<MoveOnly>>>::data;
+
+    QVariant data(const std::shared_ptr<TreeNode<MoveOnly>> &node, const QModelIndex &index, int role) const override
     {
         if (index.column() != 0)
             return {};
@@ -919,4 +938,61 @@ TEST_F(ExposedStringTreeModelTest, GetStorageValueReturnsSharedPtrAtIndex)
     const auto &stored = model.getStorageValue(model.index(0, 0));
     EXPECT_EQ(stored, child);
     EXPECT_EQ(stored.get(), child.get());
+}
+
+TEST(MoveOnlyTreeModel, NodesHoldMoveOnlyPayload)
+{
+    MoveOnlyTreeModel model;
+    QAbstractItemModelTester tester{&model, Reporting::Fatal};
+
+    QSignalSpy insertedSpy(&model, &QAbstractItemModel::rowsInserted);
+
+    auto parent = std::make_shared<TreeNode<MoveOnly>>(MoveOnly{1});
+    model.root()->push_back_child(parent);
+    parent->push_back_child(std::make_shared<TreeNode<MoveOnly>>(MoveOnly{2}));
+
+    ASSERT_EQ(model.rowCount(), 1);
+    ASSERT_EQ(model.rowCount(model.index(0, 0)), 1);
+    EXPECT_EQ(model.root()->child(0)->payload().value, 1);
+    EXPECT_EQ(model.index(0, 0).data(Qt::DisplayRole).toInt(), 1);
+    EXPECT_EQ(model.index(0, 0, model.index(0, 0)).data(Qt::DisplayRole).toInt(), 2);
+    EXPECT_EQ(insertedSpy.count(), 2);
+}
+
+TEST(MoveOnlyTreeModel, SetPayloadMovesValueAndEmitsDataChanged)
+{
+    MoveOnlyTreeModel model;
+    QAbstractItemModelTester tester{&model, Reporting::Fatal};
+
+    auto node = std::make_shared<TreeNode<MoveOnly>>(MoveOnly{1});
+    model.root()->push_back_child(node);
+
+    QSignalSpy changedSpy(&model, &QAbstractItemModel::dataChanged);
+    node->setPayload(MoveOnly{42});
+
+    EXPECT_EQ(node->payload().value, 42);
+    ASSERT_EQ(changedSpy.count(), 1);
+    const QList<QVariant> args = changedSpy.at(0);
+    EXPECT_EQ(args.at(0).value<QModelIndex>(), model.index(0, 0));
+}
+
+TEST(MoveOnlyTreeModel, InsertRowsRejectedButNodeRemovalWorks)
+{
+    MoveOnlyTreeModel model;
+    QAbstractItemModelTester tester{&model, Reporting::Fatal};
+
+    QSignalSpy insertedSpy(&model, &QAbstractItemModel::rowsInserted);
+    EXPECT_FALSE(model.insertRows(0, 1));
+    EXPECT_TRUE(model.insertRows(0, 0));
+    EXPECT_EQ(insertedSpy.count(), 0);
+
+    model.root()->push_back_child(std::make_shared<TreeNode<MoveOnly>>(MoveOnly{1}));
+    model.root()->push_back_child(std::make_shared<TreeNode<MoveOnly>>(MoveOnly{2}));
+
+    QSignalSpy removedSpy(&model, &QAbstractItemModel::rowsRemoved);
+    EXPECT_TRUE(model.removeRows(0, 1));
+
+    ASSERT_EQ(model.rowCount(), 1);
+    EXPECT_EQ(model.root()->child(0)->payload().value, 2);
+    EXPECT_EQ(removedSpy.count(), 1);
 }
