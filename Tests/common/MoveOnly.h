@@ -4,11 +4,6 @@
 
 namespace cute_tests {
 
-// Payload that is neither default-constructible nor copyable, only movable.
-// Used to verify every model keeps working with such a type: insertion goes
-// through moves, ValueRole / drag-and-drop stay disabled (they require a
-// copyable, default-constructible T) and the standard-container API still
-// holds.
 struct MoveOnly
 {
     explicit MoveOnly(int v) : value(v) {}
