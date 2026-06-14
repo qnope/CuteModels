@@ -12,6 +12,7 @@
 #include <QVariant>
 
 #include <cstddef>
+#include <iterator>
 #include <stdexcept>
 #include <type_traits>
 #include <utility>
@@ -102,13 +103,15 @@ public:
         this->endInsertRows();
     }
 
-    void insert_range(int row, const std::vector<T> &values)
+    void insert_range(int row, std::vector<T> values)
     {
         if (values.empty())
             return;
         const int last = row + static_cast<int>(values.size()) - 1;
         this->beginInsertRows(QModelIndex(), row, last);
-        m_items.insert(m_items.begin() + row, values.begin(), values.end());
+        m_items.insert(m_items.begin() + row,
+                       std::make_move_iterator(values.begin()),
+                       std::make_move_iterator(values.end()));
         this->endInsertRows();
     }
 
@@ -123,12 +126,10 @@ public:
             return true;
 
         if constexpr (std::is_default_constructible_v<T>) {
-            // emplace default-constructs each row in place so move-only T (e.g.
+            // A size-constructed vector default-constructs each row, which
+            // insert_range then moves into place, so move-only T (e.g.
             // std::unique_ptr) is supported without requiring a copyable fill.
-            this->beginInsertRows(QModelIndex(), row, row + count - 1);
-            for (int i = 0; i < count; ++i)
-                m_items.emplace(m_items.begin() + row + i);
-            this->endInsertRows();
+            insert_range(row, std::vector<T>(static_cast<std::size_t>(count)));
             return true;
         } else {
             return false;
