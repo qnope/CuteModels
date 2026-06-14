@@ -44,8 +44,6 @@ public:
     int m_count = 0;
 };
 
-// Resolves the role integer published for a given property name through the
-// model's roleNames(). Returns -1 when the name is not exposed.
 int roleFor(const QAbstractItemModel &model, const char *name)
 {
     const QHash<int, QByteArray> names = model.roleNames();
@@ -62,14 +60,10 @@ public:
     using BasicListModel<T>::BasicListModel;
     using BasicListModel<T>::data;
 
-    // Property roles are served by the base multiData(); the customization point
-    // is only here to satisfy the pure-virtual contract for non-property roles.
     QVariant data(const T &, const QModelIndex &, int) const override { return {}; }
 };
 
-} // namespace
-
-// --- Gadget by value --------------------------------------------------------
+}
 
 TEST(PropertyRolesGadgetValue, RoleNamesExposeProperties)
 {
@@ -117,8 +111,6 @@ TEST(PropertyRolesGadgetValue, MultiDataFillsEveryPropertyRole)
     EXPECT_EQ(roles[1].data().toInt(), 9);
 }
 
-// --- Gadget through a raw pointer -------------------------------------------
-
 TEST(PropertyRolesGadgetPointer, DataReadsPropertiesThroughPointer)
 {
     std::vector<std::unique_ptr<Gadget>> storage;
@@ -147,8 +139,6 @@ TEST(PropertyRolesGadgetPointer, NullPointerYieldsInvalidVariant)
 
     EXPECT_FALSE(model.data(model.index(0, 0), roleFor(model, "width")).isValid());
 }
-
-// --- QObject through a raw pointer ------------------------------------------
 
 TEST(PropertyRolesObjectPointer, RoleNamesIncludeInheritedObjectName)
 {
@@ -191,8 +181,6 @@ TEST(PropertyRolesObjectPointer, NullPointerYieldsInvalidVariant)
     EXPECT_FALSE(model.data(model.index(0, 0), roleFor(model, "title")).isValid());
 }
 
-// --- QObject through unique_ptr (move-only) ---------------------------------
-
 TEST(PropertyRolesObjectUniquePtr, DataReadsPropertiesThroughUniquePtr)
 {
     PropertyListModel<std::unique_ptr<MyObject>> model;
@@ -220,8 +208,6 @@ TEST(PropertyRolesObjectUniquePtr, NullUniquePtrYieldsInvalidVariant)
 
     EXPECT_FALSE(model.data(model.index(0, 0), roleFor(model, "title")).isValid());
 }
-
-// --- QObject through shared_ptr --------------------------------------------
 
 TEST(PropertyRolesObjectSharedPtr, DataReadsPropertiesThroughSharedPtr)
 {

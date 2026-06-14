@@ -71,9 +71,6 @@ TEST(RangeListCtor, NonEmptyRangeWithValidIndicesSucceeds)
     QSignalSpy changedSpy(&model, &QAbstractItemModel::dataChanged);
 
     {
-        // Use a snapshot vector to keep the iterators valid for the lifetime
-        // of the RangeList. The indices belong to the model so the destructor
-        // can legally emit dataChanged on it.
         std::vector<int> snapshot{1, 2, 3};
         RangeList<int> range(snapshot.begin(), snapshot.end(),
                              QPersistentModelIndex(model.index(0, 0)),

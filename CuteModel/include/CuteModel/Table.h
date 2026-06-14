@@ -172,4 +172,4 @@ private:
     int m_columnCount = 0;
 };
 
-}  // namespace cute
+}

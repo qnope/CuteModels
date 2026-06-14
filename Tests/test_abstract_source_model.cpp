@@ -182,8 +182,6 @@ protected:
     QAbstractItemModelTester tester{&model, QAbstractItemModelTester::FailureReportingMode::Fatal};
 };
 
-// Overrides the per-element flags customization point to prove AbstractSourceModel hands
-// it the stored value and the full index (not just the column).
 class CustomFlagsModel : public TwoColumnModel
 {
 public:
@@ -294,7 +292,6 @@ TEST_F(TwoColumnModelTest, RootFlagsAreSettableAndReturnedForInvalidIndex)
 
     EXPECT_EQ(model.rootFlags(), Qt::ItemIsDropEnabled);
     EXPECT_EQ(model.flags(QModelIndex()), Qt::ItemIsDropEnabled);
-    // Valid indices still resolve through the per-element customization point.
     EXPECT_TRUE(model.flags(model.index(0, 0)) & Qt::ItemIsSelectable);
 }
 

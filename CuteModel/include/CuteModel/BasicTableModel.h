@@ -98,7 +98,6 @@ public:
         }
     }
 
-    // Insert a single row whose cells take the supplied per-column values.
     bool append_range_row(const std::vector<T> &values)
     {
         return insert_range_row(rows(), values);
@@ -109,7 +108,6 @@ public:
         return insert_range_row(row, std::vector<std::vector<T>>{values});
     }
 
-    // Insert several rows at once, each row carrying its own per-column values.
     bool append_range_row(const std::vector<std::vector<T>> &newRows)
     {
         return insert_range_row(rows(), newRows);
@@ -247,7 +245,6 @@ public:
         }
     }
 
-    // Insert a single column whose cells take the supplied per-row values.
     bool append_range_column(const std::vector<T> &values)
     {
         return insert_range_column(columns(), values);
@@ -258,7 +255,6 @@ public:
         return insert_range_column(column, std::vector<std::vector<T>>{values});
     }
 
-    // Insert several columns at once, each column carrying its own per-row values.
     bool append_range_column(const std::vector<std::vector<T>> &newColumns)
     {
         return insert_range_column(columns(), newColumns);

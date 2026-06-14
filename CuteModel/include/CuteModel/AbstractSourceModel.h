@@ -86,8 +86,6 @@ public:
                 }
             }
             if constexpr (has_meta_properties_v<T>) {
-                // Property roles are exactly the ones roleNames() published from
-                // PropertyRoleBase onward; resolve them by their published name.
                 if (const auto it = names.constFind(role);
                     role >= PropertyRoleBase && it != names.constEnd()) {
                     if (QVariant projected = readMetaProperty(value, it.value().constData());

@@ -42,8 +42,6 @@ std::unique_ptr<StringListModel> makeModel(const QString &value)
 
 }
 
-// The segregation contract: ValueModelAccessor<T> is a standalone, polymorphic,
-// non-QObject interface so a future Proxy<T> can co-inherit it alongside an item model.
 static_assert(!std::is_base_of_v<QObject, ValueModelAccessor<int>>,
               "ValueModelAccessor must not be a QObject");
 static_assert(std::is_polymorphic_v<ValueModelAccessor<int>>,
@@ -82,8 +80,6 @@ TEST(ValueModelAccessor, GetRefThroughInterfaceReference)
 
 TEST(ValueModelAccessor, CrossCastsToItemModel)
 {
-    // Every concrete model co-inherits QAbstractItemModel; the cross-cast a future
-    // Proxy<T> relies on must succeed from a ValueModelAccessor<T> reference.
     auto model = makeModel(QStringLiteral("x"));
 
     ValueModelAccessor<QString> &accessor = *model;
