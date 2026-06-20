@@ -53,12 +53,13 @@ signals:
 private:
     void onSelectionChanged(const QItemSelection &selected, const QItemSelection &deselected);
     void onCurrentChanged(const QModelIndex &current, const QModelIndex &previous);
+    void updateSelectedView();
     void updateCurrentRef();
 
     PersonListModel m_source;
     cute::RowFilterProxyModel<Person> m_proxy;
     cute::SelectionModel<Person> m_selection;
-    PersonListModel m_selected;
+    cute::RowFilterProxyModel<Person> m_selectedView;
     std::unique_ptr<PersonRef> m_currentRef;
     QString m_filterText;
 };
