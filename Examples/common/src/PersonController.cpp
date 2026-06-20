@@ -2,6 +2,8 @@
 
 #include <Qt>
 
+#include <algorithm>
+
 namespace example {
 
 PersonController::PersonController(QObject *parent)
@@ -9,7 +11,7 @@ PersonController::PersonController(QObject *parent)
     , m_source({QStringLiteral("Name"), QStringLiteral("Age")})
     , m_proxy(&m_source)
     , m_selection(&m_proxy)
-    , m_selected({QStringLiteral("Name"), QStringLiteral("Age")})
+    , m_selectedView(&m_source)
 {
     m_source.reset(samplePeople());
 
@@ -18,6 +20,7 @@ PersonController::PersonController(QObject *parent)
     connect(&m_selection, &QItemSelectionModel::currentChanged,
             this, &PersonController::onCurrentChanged);
 
+    updateSelectedView();
     updateCurrentRef();
 }
 
@@ -50,7 +53,7 @@ QAbstractItemModel *PersonController::listModel()
 
 QAbstractItemModel *PersonController::selectionListModel()
 {
-    return &m_selected;
+    return &m_selectedView;
 }
 
 QItemSelectionModel *PersonController::selectionModel()
@@ -93,8 +96,17 @@ void PersonController::selectRow(int proxyRow)
 
 void PersonController::onSelectionChanged(const QItemSelection &, const QItemSelection &)
 {
-    m_selected.reset(m_selection.selectedValues());
+    updateSelectedView();
     emit selectedRowsChanged();
+}
+
+void PersonController::updateSelectedView()
+{
+    const std::vector<Person> values = m_selection.selectedValues();
+    m_selectedView.setFilterPredicate(
+        [values](const Person &person, const QModelIndex &) {
+            return std::find(values.begin(), values.end(), person) != values.end();
+        });
 }
 
 void PersonController::onCurrentChanged(const QModelIndex &, const QModelIndex &)
