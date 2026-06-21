@@ -1,4 +1,4 @@
-find_package(Qt6 REQUIRED COMPONENTS Test)
+find_package(Qt6 REQUIRED COMPONENTS Test Qml)
 find_package(GTest CONFIG REQUIRED)
 
 include(GoogleTest)
@@ -23,13 +23,16 @@ target_sources(cutemodel_tests PRIVATE
     test_model_traversal.cpp
     test_selection_model.cpp
     test_tree_model.cpp
-    test_row_filter_proxy_model.cpp)
+    test_row_filter_proxy_model.cpp
+    test_refmap.cpp)
 
 target_include_directories(cutemodel_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
 target_link_libraries(cutemodel_tests PRIVATE
     CuteModel::CuteModel
+    CuteModel::Qml
     Qt6::Core
+    Qt6::Qml
     Qt6::Test
     GTest::gtest
     GTest::gtest_main)

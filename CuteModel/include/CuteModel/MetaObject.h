@@ -105,6 +105,18 @@ const meta_element_t<T> *metaElementPointer(const T &storage)
 }
 
 template <typename T>
+meta_element_t<T> *mutableMetaElementPointer(T &storage)
+{
+    using Stored = std::remove_cv_t<std::remove_reference_t<T>>;
+    if constexpr (std::is_pointer_v<Stored>)
+        return storage;
+    else if constexpr (is_shared_or_unique_ptr<Stored>::value)
+        return storage.get();
+    else
+        return std::addressof(storage);
+}
+
+template <typename T>
 QVariant readMetaProperty(const T &storage, const QMetaProperty &property)
 {
     using Element = meta_element_t<T>;
@@ -116,6 +128,20 @@ QVariant readMetaProperty(const T &storage, const QMetaProperty &property)
         return property.read(pointer);
     else
         return property.readOnGadget(pointer);
+}
+
+template <typename T>
+bool writeMetaProperty(T &storage, const QMetaProperty &property, const QVariant &value)
+{
+    using Element = meta_element_t<T>;
+    Element *pointer = mutableMetaElementPointer(storage);
+    if (!pointer)
+        return false;
+
+    if constexpr (std::is_base_of_v<QObject, Element>)
+        return property.write(pointer, value);
+    else
+        return property.writeOnGadget(pointer, value);
 }
 
 template <typename T>
@@ -134,6 +160,16 @@ QVariant readMetaProperty(const T &storage, const char *name)
     if (index < 0)
         return {};
     return readMetaProperty(storage, metaObject.property(index));
+}
+
+template <typename T>
+bool writeMetaProperty(T &storage, const char *name, const QVariant &value)
+{
+    const QMetaObject &metaObject = meta_element_t<T>::staticMetaObject;
+    const int index = metaObject.indexOfProperty(name);
+    if (index < 0)
+        return false;
+    return writeMetaProperty(storage, metaObject.property(index), value);
 }
 
 }
