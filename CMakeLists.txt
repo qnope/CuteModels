@@ -19,6 +19,7 @@ endforeach()
 find_package(Qt6 REQUIRED COMPONENTS Core)
 
 add_subdirectory(CuteModel)
+add_subdirectory(CuteModelQml)
 
 if(CUTEMODEL_BUILD_EXAMPLES)
     add_subdirectory(Examples)
