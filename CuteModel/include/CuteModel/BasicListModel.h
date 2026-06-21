@@ -2,11 +2,9 @@
 
 #include "CuteModel/AbstractSourceModel.h"
 #include "CuteModel/ItemProxy.h"
-#include "CuteModel/MetaObject.h"
 #include "CuteModel/RangeList.h"
 #include "CuteModel/ValueRole.h"
 
-#include <QMetaProperty>
 #include <QModelIndex>
 #include <QPersistentModelIndex>
 #include <QString>
@@ -64,22 +62,6 @@ public:
             && section >= 0 && section < m_headers.size())
             return m_headers.at(section);
         return QAbstractItemModel::headerData(section, orientation, role);
-    }
-
-    using AbstractSourceModel<T>::data;
-
-    QVariant data(const T &value, const QModelIndex &index, int role) const override
-    {
-        if constexpr (has_meta_properties_v<T>) {
-            if (role == Qt::DisplayRole || role == Qt::EditRole) {
-                const std::vector<QMetaProperty> &properties = metaPropertiesFor<T>();
-                if (index.column() >= 0
-                    && static_cast<std::size_t>(index.column()) < properties.size())
-                    return readMetaProperty(
-                        value, properties[static_cast<std::size_t>(index.column())]);
-            }
-        }
-        return {};
     }
 
     int size() const noexcept { return static_cast<int>(m_items.size()); }
