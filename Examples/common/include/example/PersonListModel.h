@@ -17,7 +17,7 @@ public:
     using cute::BasicListModel<Person>::BasicListModel;
     using cute::BasicListModel<Person>::data;
 
-    QVariant data(const Person &, const QModelIndex &, int) const override { return {}; }
+    QVariant data(const Person &value, const QModelIndex &index, int role) const override;
 };
 
 std::vector<Person> samplePeople();
