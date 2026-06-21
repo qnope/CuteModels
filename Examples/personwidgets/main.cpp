@@ -1,6 +1,8 @@
 #include "example/PersonController.h"
 #include "example/PersonRef.h"
 
+#include "CuteModel/RefBase.h"
+
 #include <QApplication>
 #include <QFormLayout>
 #include <QHBoxLayout>
@@ -43,7 +45,7 @@ public:
             m_ref->disconnect(this);
         m_ref = m_controller->currentRef();
         if (m_ref)
-            connect(m_ref, &PersonRef::changed, this, &DetailPanel::refresh);
+            connect(m_ref, &cute::RefBase::valueChanged, this, &DetailPanel::refresh);
         refresh();
     }
 
