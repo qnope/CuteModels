@@ -117,7 +117,7 @@ void PersonController::onCurrentChanged(const QModelIndex &, const QModelIndex &
 
 void PersonController::updateCurrentRef()
 {
-    m_currentRef = std::make_unique<PersonRef>(m_selection.currentRef());
+    m_currentRef = m_selection.currentRef<PersonRef>();
     emit currentRefChanged();
 }
 
