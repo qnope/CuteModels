@@ -2,6 +2,21 @@
 
 namespace example {
 
+QVariant PersonListModel::data(const Person &value, const QModelIndex &index, int role) const
+{
+    if (role == Qt::DisplayRole) {
+        switch (index.column()) {
+        case 0:
+            return value.m_name;
+        case 1:
+            return value.m_age;
+        default:
+            break;
+        }
+    }
+    return cute::BasicListModel<Person>::data(value, index, role);
+}
+
 std::vector<Person> samplePeople()
 {
     return {

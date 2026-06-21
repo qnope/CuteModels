@@ -105,7 +105,10 @@ public:
         }
     }
 
-    virtual QVariant data(const T &value, const QModelIndex &index, int role) const = 0;
+    virtual QVariant data(const T &value, const QModelIndex &index, int role) const
+    {
+        return {};
+    }
 
     bool setData(const QModelIndex &index, const QVariant &value,
                  int role = ValueRole) override
