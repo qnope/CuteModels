@@ -2,17 +2,15 @@
 
 #include "example/Person.h"
 
-#include "CuteModel/RefBase.h"
 #include "CuteModel/ValueModelAccessor.h"
 
 #include <QObject>
+#include <QPersistentModelIndex>
 #include <QString>
-
-#include <memory>
 
 namespace example {
 
-class PersonRef : public QObject
+class PersonRef : public cute::ValueModelAccessor<Person>::Ref
 {
     Q_OBJECT
     Q_PROPERTY(bool valid READ valid NOTIFY changed)
@@ -21,9 +19,7 @@ class PersonRef : public QObject
     Q_PROPERTY(QString email READ email NOTIFY changed)
 
 public:
-    using ValueRef = cute::ValueModelAccessor<Person>::Ref;
-
-    explicit PersonRef(std::unique_ptr<ValueRef> ref, QObject *parent = nullptr);
+    PersonRef(cute::ValueModelAccessor<Person> *model, QPersistentModelIndex index);
 
     bool valid() const;
     QString name() const;
@@ -32,9 +28,6 @@ public:
 
 signals:
     void changed();
-
-private:
-    std::unique_ptr<ValueRef> m_ref;
 };
 
 }
