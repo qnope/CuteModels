@@ -6,10 +6,7 @@ namespace example {
 
 PersonRef::PersonRef(cute::ValueModelAccessor<Person> *model, QPersistentModelIndex index)
     : Ref(model, std::move(index))
-{
-    connect(this, &cute::RefBase::valueChanged, this, &PersonRef::changed);
-    connect(this, &cute::RefBase::underlyingValueDestroyed, this, &PersonRef::changed);
-}
+{}
 
 bool PersonRef::valid() const
 {
