@@ -329,11 +329,11 @@ The build uses CMake presets. Qt is consumed from a system install and GTest com
 
 **Required environment:**
 - `VCPKG_ROOT` — path to a vcpkg checkout (used by the toolchain in `CMakePresets.json`).
-- Qt is discovered automatically. If it is not on the default search path, set **one** of `QT_ROOT_DIR`, `Qt6_DIR`, `QTDIR`, or `CMAKE_PREFIX_PATH` to the Qt install prefix (e.g. `~/Qt/6.8.3/macos`).
+- Qt is discovered automatically. If it is not on the default search path, set **one** of `QT_ROOT_DIR`, `Qt6_DIR`, `QTDIR`, or `CMAKE_PREFIX_PATH` to the Qt install prefix (e.g. `~/Qt/6.9.1/macos`).
 
 ```bash
 export VCPKG_ROOT=/path/to/vcpkg
-export QT_ROOT_DIR=~/Qt/6.8.3/macos   # only if Qt is not auto-detected
+export QT_ROOT_DIR=~/Qt/6.9.1/macos   # only if Qt is not auto-detected
 
 cmake --preset default
 cmake --build --preset default
