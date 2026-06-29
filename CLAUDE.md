@@ -43,14 +43,14 @@ in the build files), and GTest comes from vcpkg. No absolute path lives in any C
 - `VCPKG_ROOT` — path to a vcpkg checkout (used by the toolchain in `CMakePresets.json`).
 - Qt: discovered automatically. If it is not on the default search path, set **one** of
   `QT_ROOT_DIR`, `Qt6_DIR`, `QTDIR`, or `CMAKE_PREFIX_PATH` to the Qt install prefix
-  (e.g. `~/Qt/6.9.1/macos`). The top-level `CMakeLists.txt` prepends these to
+  (e.g. `~/Qt/6.8.3/macos`). The top-level `CMakeLists.txt` prepends these to
   `CMAKE_PREFIX_PATH` before `find_package(Qt6)`.
 
 ### Commands
 
 ```bash
 export VCPKG_ROOT=/path/to/vcpkg
-export QT_ROOT_DIR=~/Qt/6.9.1/macos   # only if Qt is not auto-detected
+export QT_ROOT_DIR=~/Qt/6.8.3/macos   # only if Qt is not auto-detected
 
 cmake --preset default
 cmake --build --preset default
