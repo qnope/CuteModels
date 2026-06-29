@@ -6,3 +6,6 @@
 .idea/
 *.user
 CMakeUserPresets.json
+
+# aqtinstall logs (created by CI Qt installs / local aqt runs)
+*.log

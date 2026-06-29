@@ -8,13 +8,17 @@ on:
 
 jobs:
   build:
-    name: ${{ matrix.os }} (${{ matrix.preset }})
+    name: ${{ matrix.os }} (${{ matrix.preset }}, Qt ${{ matrix.qt-version }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-14, windows-2022]
         preset: [default, sanitize]
+        qt-version:
+          - '6.5.3'    # LTS
+          - '6.8.3'    # LTS
+          - '6.10.3'   # latest
 
     steps:
       - name: Checkout
@@ -23,7 +27,7 @@ jobs:
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
-          version: 6.8.3
+          version: ${{ matrix.qt-version }}
           cache: true
 
       - name: Install Ninja

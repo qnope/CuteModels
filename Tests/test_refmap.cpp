@@ -51,24 +51,31 @@ public:
     QVariant data(const Person &, const QModelIndex &, int) const override { return {}; }
 };
 
-std::unique_ptr<PersonListModel> makeModel(const Person &person)
-{
-    auto model = std::make_unique<PersonListModel>();
-    model->push_back(person);
-    return model;
-}
-
 }
 
 Q_DECLARE_METATYPE(Person)
 
-TEST(RefMap, ExposesMetaPropertiesAsKeys)
-{
-    auto model = makeModel(Person(QStringLiteral("Alice"), 30));
-    QAbstractItemModelTester tester{
-        model.get(), QAbstractItemModelTester::FailureReportingMode::Fatal};
+namespace {
 
-    auto ref = model->getRef<>(model->index(0, 0));
+class RefMapTest : public ::testing::Test
+{
+protected:
+    PersonListModel model;
+    QAbstractItemModelTester tester{
+        &model, QAbstractItemModelTester::FailureReportingMode::Fatal};
+
+    void SetUp() override { model.push_back(Person(QStringLiteral("Alice"), 30)); }
+
+    QModelIndex index() const { return model.index(0, 0); }
+
+    const cute::ValueModelAccessor<Person> &accessor() const { return model; }
+};
+
+}
+
+TEST_F(RefMapTest, ExposesMetaPropertiesAsKeys)
+{
+    auto ref = model.getRef<>(index());
     ASSERT_NE(ref, nullptr);
 
     RefMap<Person> map(std::move(ref));
@@ -80,20 +87,14 @@ TEST(RefMap, ExposesMetaPropertiesAsKeys)
     EXPECT_EQ(value, Person(QStringLiteral("Alice"), 30));
 }
 
-TEST(RefMap, RefreshesWhenStorageChanges)
+TEST_F(RefMapTest, RefreshesWhenStorageChanges)
 {
-    auto model = makeModel(Person(QStringLiteral("Alice"), 30));
-    QAbstractItemModelTester tester{
-        model.get(), QAbstractItemModelTester::FailureReportingMode::Fatal};
-
-    const QModelIndex index = model->index(0, 0);
-
-    auto driver = model->getRef<>(index);
+    auto driver = model.getRef<>(index());
     ASSERT_NE(driver, nullptr);
 
-    RefMap<Person> map(model->getRef<>(index));
+    RefMap<Person> map(model.getRef<>(index()));
 
-    QSignalSpy dataChangedSpy(model.get(), &QAbstractItemModel::dataChanged);
+    QSignalSpy dataChangedSpy(&model, &QAbstractItemModel::dataChanged);
 
     driver->setValue(Person(QStringLiteral("Bob"), 41));
 
@@ -102,46 +103,32 @@ TEST(RefMap, RefreshesWhenStorageChanges)
     EXPECT_EQ(map.value(QStringLiteral("age")).toInt(), 41);
 }
 
-TEST(RefMap, WritesPropertyBackToModel)
+TEST_F(RefMapTest, WritesPropertyBackToModel)
 {
-    auto model = makeModel(Person(QStringLiteral("Alice"), 30));
-    QAbstractItemModelTester tester{
-        model.get(), QAbstractItemModelTester::FailureReportingMode::Fatal};
+    RefMap<Person> map(model.getRef<>(index()));
 
-    const QModelIndex index = model->index(0, 0);
-
-    RefMap<Person> map(model->getRef<>(index));
-
-    QSignalSpy dataChangedSpy(model.get(), &QAbstractItemModel::dataChanged);
+    QSignalSpy dataChangedSpy(&model, &QAbstractItemModel::dataChanged);
 
     map.setProperty("name", QStringLiteral("Bob"));
 
     EXPECT_EQ(dataChangedSpy.count(), 1);
 
-    const cute::ValueModelAccessor<Person> &accessor = *model;
-    const Person &stored = accessor.getStorageValue(index);
+    const Person &stored = accessor().getStorageValue(index());
     EXPECT_EQ(stored.m_name, QStringLiteral("Bob"));
     EXPECT_EQ(stored.m_age, 30);
 }
 
-TEST(RefMap, WritesValueKeyBackToModel)
+TEST_F(RefMapTest, WritesValueKeyBackToModel)
 {
-    auto model = makeModel(Person(QStringLiteral("Alice"), 30));
-    QAbstractItemModelTester tester{
-        model.get(), QAbstractItemModelTester::FailureReportingMode::Fatal};
+    RefMap<Person> map(model.getRef<>(index()));
 
-    const QModelIndex index = model->index(0, 0);
-
-    RefMap<Person> map(model->getRef<>(index));
-
-    QSignalSpy dataChangedSpy(model.get(), &QAbstractItemModel::dataChanged);
+    QSignalSpy dataChangedSpy(&model, &QAbstractItemModel::dataChanged);
 
     map.setProperty("value", QVariant::fromValue(Person(QStringLiteral("Carol"), 52)));
 
     EXPECT_EQ(dataChangedSpy.count(), 1);
 
-    const cute::ValueModelAccessor<Person> &accessor = *model;
-    EXPECT_EQ(accessor.getStorageValue(index), Person(QStringLiteral("Carol"), 52));
+    EXPECT_EQ(accessor().getStorageValue(index()), Person(QStringLiteral("Carol"), 52));
 }
 
 #include "test_refmap.moc"
