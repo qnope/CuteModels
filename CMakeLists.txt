@@ -18,6 +18,15 @@ endforeach()
 
 find_package(Qt6 REQUIRED COMPONENTS Core)
 
+# Qt < 6.6 headers (e.g. qvarlengtharray.h) use stdext::checked_array_iterator,
+# which current MSVC STL disables by default. Restore the escape hatch so those
+# LTS versions still compile with an up-to-date MSVC.
+if(MSVC AND Qt6_VERSION VERSION_LESS 6.6)
+    add_compile_definitions(
+        _HAS_DEPRECATED_STDEXT_ARR_ITERS=1
+        _SILENCE_STDEXT_ARR_ITERS_DEPRECATION_WARNING)
+endif()
+
 add_subdirectory(CuteModel)
 add_subdirectory(CuteModelQml)
 
